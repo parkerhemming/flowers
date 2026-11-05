@@ -704,16 +704,23 @@ const hint = document.getElementById('hint');
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
 const NOTE = 'for aria, from parker';
 const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'ily L,,|'];
-const TYPE = .075, BACK = .035, GAP = .45, HOLD_MAIN = 14, HOLD_MSG = 6;
+const TYPE = .075, GAP = .45, HOLD_MAIN = 14, HOLD_MSG = 6;
+// backspacing is tapped, not held: each press gets its own uneven gap, with the odd
+// longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
+const hash = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return v - Math.floor(v); };
+const backGap = (i, k) => .085 + .11 * hash(i, k) + (hash(k, i + 7) < .12 ? .22 : 0);
 function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
   if (t < 0) return ['', false];
   for (let i = 0; ; i++) {
     const s = i % 2 ? NOTES[(i >> 1) % NOTES.length] : NOTE, hold = i % 2 ? HOLD_MSG : HOLD_MAIN;
-    const ty = s.length * TYPE, bk = s.length * BACK;
+    const ty = s.length * TYPE;
     if (t < ty) return [s.slice(0, Math.floor(t / TYPE)), true];
     if ((t -= ty) < hold) return [s, false];
-    if ((t -= hold) < bk) return [s.slice(0, s.length - 1 - Math.floor(t / BACK)), true];
-    if ((t -= bk) < GAP) return ['', false];
+    t -= hold;
+    let k = 0;
+    while (k < s.length && t >= backGap(i, k)) t -= backGap(i, k++);
+    if (k < s.length) return [s.slice(0, s.length - k), true];
+    if (t < GAP) return ['', false];
     t -= GAP;
   }
 }
