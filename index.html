@@ -723,19 +723,21 @@ let deckOffset = 0, noteCycle = 0;
 const decks = new Map();
 function deck(r) {
   if (!decks.has(r)) {
-    const d = NOTES.map((_, k) => k);
+    const d = ALL.map((_, k) => k);
     for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(hash(deckSeed + r, k) * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
-    if (r > 0 && d[0] === deck(r - 1)[d.length - 1]) [d[0], d[1]] = [d[1], d[0]];
+    if (r === 0) { const k = d.indexOf(0); [d[0], d[k]] = [d[k], d[0]]; }       // the very first one is always her note
+    else if (d[0] === deck(r - 1)[d.length - 1]) [d[0], d[1]] = [d[1], d[0]];
     decks.set(r, d);
   }
   return decks.get(r);
 }
-const message = m => NOTES[deck(Math.floor(m / NOTES.length))[m % NOTES.length]];
+const ALL = [NOTE, ...NOTES];
+const message = m => ALL[deck(Math.floor(m / ALL.length))[m % ALL.length]];
 function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
   if (t < 0) return ['', false];
   for (let i = 0; ; i++) {
     noteCycle = i;
-    const s = i % 2 ? message((i >> 1) + deckOffset) : NOTE, hold = i % 2 ? HOLD_MSG : HOLD_MAIN;
+    const s = message(i + deckOffset), hold = s === NOTE ? HOLD_MAIN : HOLD_MSG;
     let j = 0;
     while (j < s.length && t >= typeGap(i, j, s)) t -= typeGap(i, j++, s);
     if (j < s.length) return [s.slice(0, j), true];
@@ -807,7 +809,7 @@ if (!still) {
     hinted = hinted && !document.body.classList.contains('paused');
     document.body.classList.remove('paused');
     setInfo(false);
-    deckOffset += (noteCycle + 1) >> 1;                 // messages already shown this run
+    deckOffset += noteCycle + 1;                        // messages already shown this run
     t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
