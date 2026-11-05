@@ -727,10 +727,13 @@ function noteAt(t) {                                   // t = seconds since typi
 const noteEl = document.getElementById('note'), typed = document.getElementById('typed');
 let shown = null;
 
-let target = 0, M = 0, Mv = 0, lagged = false, hinted = false, windScale = 1, lastT = 0;
+let target = 0, M = 0, Mv = 0, lagged = false, drift = 1, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
   if (T < BLOOM_END - 1) return;                      // ignored until the bloom has (visibly) finished
   const finished = M === target && Mv === 0 && !lagged;
+  // the turnaround can take no longer than the interrupted morph had left to run, so a
+  // tap just before it lands turns around about as fast as a tap after it lands
+  if (!finished) drift = Math.max(.04, Math.abs(target - M) / M_SPEED);
   target = 1 - target;
   if (finished) {                                     // clean morph: everything together, moving from the first frame
     lagged = false;
@@ -745,7 +748,7 @@ function stepMorph(dt) {
   // so the effect never outlasts the morph or makes a short trip feel sluggish
   const rem = Math.max(.05, Math.abs(target - M) / M_SPEED);
   const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
-  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(8, Math.max(1.4, 1.2 / rem)) : 5));
+  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(14, Math.max(1.4, 1.2 / rem, 2.2 / drift)) : 5));
   M = clamp01(M + Mv * dt);
   if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
   if (!lagged) { for (const u of units) u.mm = M; return; }
@@ -753,7 +756,7 @@ function stepMorph(dt) {
   // faster as the remaining time runs out so they all land together with M
   let settled = M === target;
   for (const u of units) {
-    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow, 3 / rem));
+    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow, 3 / rem, 2.5 / drift));
     if (Math.abs(u.mm - M) > .001) settled = false;
   }
   if (settled) { lagged = false; for (const u of units) u.mm = M; }
@@ -780,7 +783,7 @@ if (!still) {
     hinted = hinted && !document.body.classList.contains('paused');
     document.body.classList.remove('paused');
     setInfo(false);
-    t0 = start(); target = M = Mv = 0; lagged = false; windScale = 1; lastT = 0; shown = null;
+    t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
   });
