@@ -49,17 +49,24 @@
   @media (min-width:768px){#note{left:calc(20px + env(safe-area-inset-left));transform:none}}   /* desktop: bottom-left */
   #note.typing .cursor{animation:none}                  /* solid while typing, like a real caret */
   @keyframes blink{50%{opacity:0}}
+  /* Home-screen app: iOS lays a frosted band over the top ~100pt under the status bar
+     (it ignores the solid status-bar setting), so the corner buttons sit just below it */
+  body.app .corner{top:calc(env(safe-area-inset-top) + 44px)}
+  body.app #info{top:calc(env(safe-area-inset-top) + 92px)}
   #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -2px;font-size:1.3em;line-height:0;vertical-align:-.04em}
   .corner:hover,.corner:focus-visible,#info-btn[aria-expanded=true]{opacity:1}
   .corner:focus-visible{outline:1px dashed #ffd6dc;outline-offset:2px}
-  #info{position:fixed;top:calc(58px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));
-    width:min(360px,calc(100vw - 28px));max-height:calc(100dvh - 90px);overflow:auto;box-sizing:border-box;
-    padding:18px 18px 14px;background:rgba(11,10,13,.93);border:1px dashed rgba(255,214,220,.38);
-    color:#e7dde1;font-size:12.5px;line-height:1.55;user-select:text;-webkit-user-select:text;
-    opacity:0;transform:translateY(-6px);visibility:hidden;transition:opacity .35s,transform .35s,visibility 0s .35s}
-  #info.open{opacity:1;transform:none;visibility:visible;transition:opacity .35s,transform .35s}
-  #info::before,#info::after{content:"+";position:absolute;color:#ffd6dc;line-height:1;top:-7px;left:-4px}
-  #info::after{left:auto;right:-4px}
+  /* Info panel: centred, framed with the same ASCII box as the tap hint (same font, size,
+     colour, backing trimmed to the lines). The frame text and the panel size are set from
+     JS so the panel is a whole number of characters and the frame always fits exactly. */
+  #info{position:fixed;top:calc(58px + env(safe-area-inset-top));left:50%;box-sizing:border-box;
+    font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;padding:1.25em 2ch;
+    color:#e7dde1;user-select:text;-webkit-user-select:text;
+    opacity:0;transform:translate(-50%,-6px);visibility:hidden;transition:opacity .35s,transform .35s,visibility 0s .35s}
+  #info.open{opacity:1;transform:translate(-50%,0);visibility:visible;transition:opacity .35s,transform .35s}
+  #info::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.93);border-radius:3px}
+  #info .frame{position:absolute;inset:0;margin:0;font:inherit;color:#ffd6dc;text-shadow:0 0 12px rgba(255,120,150,.45);pointer-events:none;white-space:pre}
+  #info .scroll{position:relative;max-height:calc(100dvh - 150px);overflow:auto;font-size:12.5px;line-height:1.55}
   #info h2{margin:0 0 10px;font-size:13px;font-weight:600;color:#ffd6dc;letter-spacing:.02em}
   #info dl{margin:0}
   #info dt{margin-top:10px;font-weight:600}
@@ -76,6 +83,8 @@
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
+  <pre class="frame" aria-hidden="true"></pre>
+  <div class="scroll">
   <h2>a bouquet for aria</h2>
   <dl>
     <dt style="color:#ff6b7f">red roses <span class="th">· กุหลาบแดง</span></dt>
@@ -91,6 +100,7 @@
   <div id="keep" hidden>
     <span style="color:#ffd6dc">[+] keep these flowers</span><br>
     Tap <svg class="share" viewBox="0 0 16 16" aria-label="Share"><path d="M8 1.5v8.5M5 4.5l3-3 3 3M5.5 7H4v7.5h8V7h-1.5"/></svg> Share, then "Add to Home Screen".
+  </div>
   </div>
 </section>
 <script>
@@ -109,6 +119,7 @@ const clamp01 = t => Math.max(0, Math.min(1, t));
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
+if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) document.body.classList.add('app');
 const c = document.getElementById('c'), x = c.getContext('2d');
 const S = document.createElement('canvas'), s = S.getContext('2d', { willReadFrequently: true });
 
@@ -840,7 +851,21 @@ if (!still) {
     const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
     document.getElementById('keep').hidden = !(iOS && !otherApp && !installed);
   }
-  const setInfo = open => { info.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); };
+  const frame = info.querySelector('.frame'), scroll = info.querySelector('.scroll');
+  function fitInfo() {
+    // character cell of the frame font, measured in place
+    const probe = Object.assign(document.createElement('span'), { textContent: '0'.repeat(20) });
+    frame.appendChild(probe); const cw = probe.getBoundingClientRect().width / 20; probe.remove();
+    const lh = parseFloat(getComputedStyle(info).lineHeight);
+    const cols = Math.max(20, Math.floor(Math.min(360, innerWidth - 28) / cw));
+    info.style.width = cols * cw + 'px'; info.style.height = '';
+    const rows = Math.ceil(info.getBoundingClientRect().height / lh);
+    info.style.height = rows * lh + 'px';
+    const bar = '-'.repeat(cols - 2);
+    frame.textContent = `.${bar}.\n` + `|${' '.repeat(cols - 2)}|\n`.repeat(rows - 2) + `'${bar}'`;
+  }
+  addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
+  const setInfo = open => { if (open) fitInfo(); info.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); };
   btn.addEventListener('click', () => setInfo(!info.classList.contains('open')));
   // replay: back to an empty screen and the full bloom. The hint comes back only if
   // she hadn't tapped the flowers yet.
