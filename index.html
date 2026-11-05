@@ -19,8 +19,7 @@
 <style>
   html,body{margin:0;height:100%;background:#0b0a0d;overflow:hidden;overscroll-behavior:none}
   body{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
-  canvas{display:block;position:fixed;inset:0;transition:filter .9s ease}
-  body.paused canvas{filter:brightness(.42) saturate(.85)}
+  canvas{display:block;position:fixed;inset:0}      /* no CSS filter: WebKit renders filtered canvases soft */
   #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
 
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
@@ -610,14 +609,14 @@ function scene(M, T = 1e3, wind = 1) {
 // ---------- ASCII pass ----------
 const SS = 3;                                   // samples per cell edge
 const still = q.has('m') || q.has('bt');            // ?m= / ?bt= freeze a single moment for inspection
-let hist = null, prevL = null, prevR, prevG, prevB, prevA;
+let hist = null, prevL = null, prevR, prevG, prevB, prevA, dim = 1;
 let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.get('bt') : 1e3, q.has('bt') ? 0 : 1];
 function setup() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(3, devicePixelRatio || 1);   // full res: a 2x canvas on a 3x phone looks blurry
   c.style.width = W + 'px'; c.style.height = H + 'px';
   const cols = +q.get('cols') || Math.round(Math.max(90, Math.min(250, W / 5.6)));
   const cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
-  c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); x.setTransform(1, 0, 0, 1, 0, 0);   // device pixels, no scaling
   S.width = cols * SS; S.height = rows * SS; prevL = null; hist = null;
   // body padding: the widest moment (the spelled-out name) spans ~146 world units
   const pad = Math.max(16, W * .04);
@@ -656,8 +655,10 @@ function frame(M, T = 1e3, wind = 1) {
     }
   }
   prevL = L; prevR = R; prevG = G; prevB = B; prevA = A;
-  x.fillStyle = '#0b0a0d'; x.fillRect(0, 0, W, H);
-  x.font = `${fs < 9 ? 'bold ' : ''}${fs}px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace`;
+  x.fillStyle = '#0b0a0d'; x.fillRect(0, 0, c.width, c.height);
+  // text is set at its real device-pixel size: WebKit renders small canvas fonts soft if a
+  // scale transform does the enlarging
+  x.font = `${fs < 9 ? 'bold ' : ''}${Math.round(fs * dpr * 10) / 10}px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace`;
   x.textBaseline = 'top';
   const buckets = new Map();
   if (!hist || hist.length !== N || still) hist = new Uint8Array(N);
@@ -689,12 +690,12 @@ function frame(M, T = 1e3, wind = 1) {
       code = idx + 10; glyph = RAMP[idx];
     }
     hist[kk] = code;
-    const mx = Math.max(R[kk], G[kk], B[kk], 1), gain = Math.min(255 / mx, Math.max(1.25 + .6 * (1 - l), (95 + 160 * Math.sqrt(l)) / mx));   // bright, but darker stays darker
+    const mx = Math.max(R[kk], G[kk], B[kk], 1), gain = dim * Math.min(255 / mx, Math.max(1.25 + .6 * (1 - l), (95 + 160 * Math.sqrt(l)) / mx));   // bright, but darker stays darker
     // bucket by colour (5 bits/channel) so fillStyle changes a few hundred times, not thousands
     const key = (Math.min(255, R[kk] * gain) >> 3) << 10 | (Math.min(255, G[kk] * gain) >> 3) << 5 | (Math.min(255, B[kk] * gain) >> 3);
     let bucket = buckets.get(key);
     if (!bucket) buckets.set(key, bucket = []);
-    bucket.push(glyph, Math.round(i * cw * dpr) / dpr, Math.round(j * ch * dpr) / dpr);
+    bucket.push(glyph, Math.round(i * cw * dpr), Math.round(j * ch * dpr));
   }
   for (const [key, bucket] of buckets) {
     x.fillStyle = `rgb(${(key >> 10) << 3},${(key >> 5 & 31) << 3},${(key & 31) << 3})`;
@@ -824,6 +825,7 @@ if (!still) {
     document.body.classList.remove('paused');
     setInfo(false);
     deckOffset += noteCycle + 1;                        // messages already shown this run
+    dim = 1;
     t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
@@ -849,6 +851,7 @@ if (!still) {
     // the wind eases in as the last flowers open, and nearly stops while paused
     const paused = document.body.classList.contains('paused');
     windScale += ((paused ? .25 : 1) - windScale) * Math.min(1, dt * 1.5);
+    dim += ((paused ? .42 : 1) - dim) * Math.min(1, dt * 3);   // the pause dims the flowers in-canvas
     stepMorph(dt);
     frame(M, calm ? 1e3 : T, calm ? 0 : smooth((T - 3.5) / 3) * windScale);
     requestAnimationFrame(loop);
