@@ -704,7 +704,7 @@ const hint = document.getElementById('hint');
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
 const NOTE = 'for aria, from parker';
 const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'ily L,,|'];
-const TYPE = .075, GAP = .45, HOLD_MAIN = 14, HOLD_MSG = 6;
+const TYPE = .075, GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
 // backspacing is tapped, not held: each press gets its own uneven gap, with the odd
 // longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
 const hash = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return v - Math.floor(v); };
