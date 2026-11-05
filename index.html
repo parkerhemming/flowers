@@ -915,19 +915,27 @@ if (!still) {
       return anchors[anchors.length - 1][1];
     };
     const paint = (text, [cr, cg, cb]) => `<span style="color:rgb(${cr},${cg},${cb});text-shadow:0 0 12px rgba(${cr},${cg},${cb},.4)">${text}</span>`;
-    // top/bottom bars: sweep through every section colour from both corners toward the
-    // middle (top starts at the title's colour, bottom at the last section's), so each
-    // corner matches the side it meets and the colour runs all the way round
-    const palette = anchors.map(a => a[1]);
-    const sweep = (i, fromEnd) => {
-      const f = 1 - Math.abs(2 * i / (cols - 1) - 1);            // 0 at both corners, 1 in the middle
-      const p = (fromEnd ? 1 - f : f) * (palette.length - 1), k = Math.min(palette.length - 2, Math.floor(p)), w = p - k;
-      return palette.length < 2 ? palette[0] : palette[k].map((v, n) => Math.round(v + (palette[k + 1][n] - v) * w));
+    // Top/bottom bars mix the colours of the text actually nearest each character: every
+    // line box of text (in its section's colour) pulls on the bar, weighted by how close it
+    // is vertically and horizontally, so the bars shift colour along their length.
+    const left = info.getBoundingClientRect().left, cw2 = info.getBoundingClientRect().width / cols, segs = [];
+    const lineBoxes = (el, colourEl) => { if (!el || el.hidden) return; const c = rgb(colourEl); for (const r of el.getClientRects()) if (r.width) segs.push([r.left - left, r.right - left, (r.top + r.bottom) / 2 - top, c]); };
+    lineBoxes(h2, h2);
+    body.querySelectorAll('dt').forEach(dt => { lineBoxes(dt, dt); lineBoxes(dt.nextElementSibling, dt); });
+    lineBoxes(foot, foot); if (!keep.hidden) lineBoxes(keep, keep.firstElementChild);
+    const mixAt = (x, y) => {
+      let w = 0, acc = [0, 0, 0];
+      for (const [x0, x1, ym, c] of segs) {
+        const dx = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
+        const k = Math.exp(-Math.abs(ym - y) / 45) * Math.exp(-dx / 40);
+        w += k; acc = acc.map((v, i) => v + c[i] * k);
+      }
+      return w ? acc.map(v => Math.round(v / w)) : [255, 214, 220];
     };
-    const barLine = (ends, fromEnd) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, sweep(i, fromEnd))).join('');
-    const lines = [barLine('..', false)];
+    const barLine = (ends, y) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, mixAt((i + .5) * cw2, y))).join('');
+    const lines = [barLine('..', .5 * lh)];
     for (let r = 1; r < rows - 1; r++) lines.push(paint(`|${' '.repeat(cols - 2)}|`, colourAt((r + .5) * lh)));
-    lines.push(barLine("''", true));
+    lines.push(barLine("''", (rows - .5) * lh));
     infoFrame.innerHTML = lines.join('\n');
   }
   addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
