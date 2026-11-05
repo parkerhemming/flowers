@@ -918,19 +918,26 @@ if (!still) {
       return anchors[anchors.length - 1][1];
     };
     const paint = (text, [cr, cg, cb]) => `<span style="color:rgb(${cr},${cg},${cb});text-shadow:0 0 12px rgba(${cr},${cg},${cb},.4)">${text}</span>`;
-    // Top/bottom bars mix the colours of the text actually nearest each character: every
-    // line box of text (in its section's colour) pulls on the bar, weighted by how close it
-    // is vertically and horizontally, so the bars shift colour along their length.
+    // Top/bottom bars take the colours of the text actually nearest each character: every
+    // run of text pulls with its own colour (dimmed by any opacity, e.g. the Thai names),
+    // weighted so the nearest line dominates; where that line ends, the bar falls through to
+    // the next line's colours. Same idea as the sides, but across the bar.
     const left = info.getBoundingClientRect().left, cw2 = info.getBoundingClientRect().width / cols, segs = [];
-    const lineBoxes = (el, colourEl) => { if (!el || el.hidden) return; const c = rgb(colourEl); for (const r of el.getClientRects()) if (r.width) segs.push([r.left - left, r.right - left, (r.top + r.bottom) / 2 - top, c]); };
-    lineBoxes(h2, h2);
-    body.querySelectorAll('dt').forEach(dt => { lineBoxes(dt, dt); lineBoxes(dt.nextElementSibling, dt); });
-    lineBoxes(foot, foot); if (!keep.hidden) lineBoxes(keep, keep.firstElementChild);
+    const BG = [11, 10, 13];
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const el = n.parentElement; let o = 1;
+      for (let e = el; e && e !== body; e = e.parentElement) o *= parseFloat(getComputedStyle(e).opacity);
+      const c = rgb(el).map((v, i) => Math.round(v * o + BG[i] * (1 - o)));
+      const rng = document.createRange(); rng.selectNodeContents(n);
+      for (const r of rng.getClientRects()) if (r.width) segs.push([r.left - left, r.right - left, (r.top + r.bottom) / 2 - top, c]);
+    }
     const mixAt = (x, y) => {
       let w = 0, acc = [0, 0, 0];
       for (const [x0, x1, ym, c] of segs) {
         const dx = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
-        const k = Math.exp(-Math.abs(ym - y) / 45) * Math.exp(-dx / 40);
+        const k = Math.exp(-Math.abs(ym - y) / 26) * Math.exp(-dx / 14);   // nearest line leads, the next ones still mix in
         w += k; acc = acc.map((v, i) => v + c[i] * k);
       }
       return w ? acc.map(v => Math.round(v / w)) : [255, 214, 220];
