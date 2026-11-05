@@ -21,12 +21,13 @@
   body{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   canvas{display:block;position:fixed;inset:0;transition:filter .9s ease}
   body.paused canvas{filter:brightness(.42) saturate(.85)}
-  #hint{position:fixed;left:50%;bottom:calc(max(9vh,28px) + env(safe-area-inset-bottom));transform:translate(-50%,8px);margin:0;
+  #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
+    padding:6px 10px;background:rgba(11,10,13,.88);
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
     text-shadow:0 0 12px rgba(255,120,150,.45);opacity:0;pointer-events:none;
     transition:opacity .8s ease,transform .8s ease;white-space:pre}
-  body.paused #hint{opacity:1;transform:translate(-50%,0);animation:float 2.6s ease-in-out .8s infinite}
-  @keyframes float{50%{transform:translate(-50%,-5px)}}
+  body.paused #hint{opacity:1;transform:translate(-50%,-50%);animation:float 2.6s ease-in-out .8s infinite}
+  @keyframes float{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,calc(-50% - 5px))}}
   /* the (i) button and its ASCII-framed info panel */
   .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
   .corner{position:fixed;top:calc(10px + env(safe-area-inset-top));
@@ -35,10 +36,13 @@
   #info-btn{right:calc(10px + env(safe-area-inset-right))}
   #replay{left:calc(10px + env(safe-area-inset-left))}
   /* the note: top centre, on the same line as the two corner buttons; fades in once the bloom is done */
-  #note{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);margin:0;
+  #note{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);margin:0;
     height:44px;line-height:44px;white-space:nowrap;font-size:13px;color:#ffd6dc;opacity:0;pointer-events:none;
     transition:opacity 1.6s ease}
   body.bloomed #note{opacity:.7}
+  #note .cursor{animation:blink 1.05s steps(1) infinite}
+  #note.typing .cursor{animation:none}                  /* solid while typing, like a real caret */
+  @keyframes blink{50%{opacity:0}}
   #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -2px;font-size:1.3em;line-height:0;vertical-align:-.04em}
   .corner:hover,.corner:focus-visible,#info-btn[aria-expanded=true]{opacity:1}
   .corner:focus-visible{outline:1px dashed #ffd6dc;outline-offset:2px}
@@ -58,11 +62,11 @@
   #info p{margin:14px 0 0;color:#9d9096;font-size:11.5px}
   #keep{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(255,214,220,.25);color:#cbbfc4}
   #keep .share{width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
-  @media (prefers-reduced-motion:reduce){body.paused #hint{animation:none}#info{transition:none}}
+  @media (prefers-reduced-motion:reduce){body.paused #hint{animation:none}#info{transition:none}#note .cursor{animation:none}}
 </style>
 <canvas id="c" aria-label="An ASCII-art bouquet of roses, dok rak and orchids for Aria"></canvas>
 <pre id="hint" role="status" aria-live="polite"></pre>
-<p id="note" class="mono">for aria, from parker</p>
+<p id="note" class="mono" aria-label="for aria, from parker"><span id="typed"></span><span class="cursor" aria-hidden="true">|</span></p>
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
@@ -686,6 +690,8 @@ const hint = document.getElementById('hint');
   const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
   hint.innerHTML = `.${'-'.repeat(inner.length)}.\n|  <b>${verb}</b> the flowers  |\n'${'-'.repeat(inner.length)}'`;
 }
+const NOTE = 'for aria, from parker', noteEl = document.getElementById('note'), typed = document.getElementById('typed');
+let typedN = -1;
 let from = 0, to = 0, tStart = -1e3, hinted = false, windScale = 1, lastT = 0;
 const morphAt = T => from + (to - from) * clamp01((T - tStart) / MORPH);
 function toggle(T) {
@@ -732,6 +738,9 @@ if (!still) {
   (function loop() {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
     document.body.classList.toggle('bloomed', T > BLOOM_END);
+    const n = Math.max(0, Math.min(NOTE.length, Math.floor((T - BLOOM_END - .7) / .075)));   // ~13 chars/s after a beat
+    if (n !== typedN) { typedN = n; typed.textContent = NOTE.slice(0, n); }
+    noteEl.classList.toggle('typing', n > 0 && n < NOTE.length);
     if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); }
     // the wind eases in as the last flowers open, and nearly stops while paused
     const paused = document.body.classList.contains('paused');
