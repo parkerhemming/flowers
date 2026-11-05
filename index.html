@@ -723,10 +723,8 @@ function onFlowers(px, py, reach) {
       if (hist[j * cols + i]) return true;
   return false;
 }
-// a hand cursor over the flowers, but only once they can be tapped (after the bloom)
-let clickable = false, mouse = null;
-const updateCursor = () => { c.style.cursor = clickable && mouse && onFlowers(mouse[0], mouse[1], 6) ? 'pointer' : ''; };
-addEventListener('mousemove', e => { mouse = [e.clientX, e.clientY]; updateCursor(); });
+// a hand cursor over the flowers
+addEventListener('mousemove', e => { c.style.cursor = onFlowers(e.clientX, e.clientY, 6) ? 'pointer' : ''; });
 // ---- timeline ----
 // bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
 // slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
@@ -867,8 +865,6 @@ if (!still) {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
     const typeAt = BLOOM_END - .6;                    // starts typing as the last flowers finish opening
     document.body.classList.toggle('bloomed', T > typeAt - .3);
-    const canTap = T >= BLOOM_END - 1;                  // same moment taps start working
-    if (canTap !== clickable) { clickable = canTap; updateCursor(); }
     const [txt, busy] = noteAt(T - typeAt);
     if (txt !== shown) { shown = txt; typed.textContent = txt; }
     noteEl.classList.toggle('typing', busy);
