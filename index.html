@@ -771,7 +771,8 @@ const hint = document.getElementById('hint');
 // Types "to: aria, from: parker", and every so often backspaces it away and types one
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
 const NOTE = 'to: aria, from: parker';
-const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames'];
+// The messages, in the order they play (looping). NOTE must be in here once.
+const ORDER = [NOTE, 'you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'you a pickle'];
 const GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
 // backspacing is tapped, not held: each press gets its own uneven gap, with the odd
 // longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
@@ -779,29 +780,18 @@ const hash = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.54
 const backGap = (i, k) => .085 + .11 * hash(i, k) + (hash(k, i + 7) < .12 ? .22 : 0);
 // typing is human too: uneven key gaps, a beat after spaces and commas, the odd pause
 const typeGap = (i, k, s) => .05 + .07 * hash(i, k + 50) + (k && ' ,'.includes(s[k - 1]) ? .07 : 0) + (hash(k + 50, i) < .07 ? .2 : 0);
-// Messages come from a shuffled deck: all of them play before any repeats, each round
-// is reshuffled (never the same message twice in a row), the order differs per visit,
-// and replay carries on through the deck instead of starting over.
-const deckSeed = Math.floor(Math.random() * 1e6);
-let deckOffset = 0, noteCycle = 0;
-const decks = new Map();
-function deck(r) {
-  if (!decks.has(r)) {
-    const d = ALL.map((_, k) => k);
-    for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(hash(deckSeed + r, k) * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
-    if (r === 0) { const k = d.indexOf(0); [d[0], d[k]] = [d[k], d[0]]; }       // the very first one is always her note
-    else if (d[0] === deck(r - 1)[d.length - 1]) [d[0], d[1]] = [d[1], d[0]];
-    decks.set(r, d);
-  }
-  return decks.get(r);
-}
-const ALL = [NOTE, ...NOTES];
-const message = m => ALL[deck(Math.floor(m / ALL.length))[m % ALL.length]];
+// Every run (page load or replay) opens with NOTE, then carries on through ORDER from
+// `resume`. Replay resumes with whatever was due next, skipping NOTE if that's what was
+// due, so it never shows twice in a row.
+const notePos = ORDER.indexOf(NOTE);
+let resume = (notePos + 1) % ORDER.length, noteCycle = 0;
+const orderIdx = i => i === 0 ? notePos : (resume + i - 1) % ORDER.length;
+const message = i => ORDER[orderIdx(i)];
 function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
   if (t < 0) return ['', false];
   for (let i = 0; ; i++) {
     noteCycle = i;
-    const s = message(i + deckOffset), hold = s === NOTE ? HOLD_MAIN : HOLD_MSG;
+    const s = message(i), hold = s === NOTE ? HOLD_MAIN : HOLD_MSG;
     let j = 0;
     while (j < s.length && t >= typeGap(i, j, s)) t -= typeGap(i, j++, s);
     if (j < s.length) return [s.slice(0, j), true];
@@ -962,7 +952,9 @@ if (!still) {
     hint.style.transition = 'opacity .2s ease, transform .2s ease'; setTimeout(() => hint.style.transition = '', 250);
     document.body.classList.remove('paused');
     setInfo(false);
-    deckOffset += noteCycle + 1;                        // messages already shown this run
+    let next = orderIdx(noteCycle + 1);                 // whatever was due after the current message
+    if (next === notePos) next = (next + 1) % ORDER.length;
+    resume = next;
     dim = 1;
     t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
