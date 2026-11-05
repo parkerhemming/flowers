@@ -22,7 +22,8 @@
   canvas{display:block;position:fixed;inset:0;transition:filter .9s ease}
   body.paused canvas{filter:brightness(.42) saturate(.85)}
   #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
-    padding:0;background:rgba(11,10,13,.88);         /* backing hugs the characters exactly */
+    padding:.7em 2ch;background:rgba(11,10,13,.88);
+    border:1px dashed rgba(255,214,220,.7);            /* a real border, so the backing ends exactly at the frame */
 
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
     text-shadow:0 0 12px rgba(255,120,150,.45);opacity:0;pointer-events:none;
@@ -687,10 +688,7 @@ addEventListener('resize', setup);
 // bloom or while a morph is still running are ignored, so spamming does nothing.
 const MORPH = 4, HINT_AFTER = 6;
 const hint = document.getElementById('hint');
-{ // ASCII box sized to whichever verb fits the device
-  const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
-  hint.innerHTML = `.${'-'.repeat(inner.length)}.\n|  <b>${verb}</b> the flowers  |\n'${'-'.repeat(inner.length)}'`;
-}
+hint.innerHTML = `<b>${matchMedia('(pointer: fine)').matches ? 'click' : 'tap'}</b> the flowers`;
 const NOTE = 'for aria, from parker', noteEl = document.getElementById('note'), typed = document.getElementById('typed');
 let typedN = -1;
 let from = 0, to = 0, tStart = -1e3, hinted = false, windScale = 1, lastT = 0;
@@ -738,7 +736,7 @@ if (!still) {
   });
   (function loop() {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
-    const typeAt = BLOOM_END - .7;                    // starts typing as the last flowers finish opening
+    const typeAt = BLOOM_END - .6;                    // starts typing as the last flowers finish opening
     document.body.classList.toggle('bloomed', T > typeAt - .3);
     const n = Math.max(0, Math.min(NOTE.length, Math.floor((T - typeAt) / .075)));   // ~13 chars/s
     if (n !== typedN) { typedN = n; typed.textContent = NOTE.slice(0, n); }
