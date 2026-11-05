@@ -772,7 +772,7 @@ const hint = document.getElementById('hint');
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
 const NOTE = 'to: aria, from: parker';
 // The messages, in the order they play (looping). NOTE must be in here once.
-const ORDER = [NOTE, 'enjoy thailand', 'put the dogs away', 'you egg (o)', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'you a pickle'];
+const ORDER = [NOTE, 'enjoy thailand', 'put the dogs away', 'you egg 🥚', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'you a pickle'];
 const GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
 // backspacing is tapped, not held: each press gets its own uneven gap, with the odd
 // longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
@@ -792,14 +792,15 @@ function noteAt(t) {                                   // t = seconds since typi
   for (let i = 0; ; i++) {
     noteCycle = i;
     const s = message(i), hold = s === NOTE ? HOLD_MAIN : HOLD_MSG;
+    const ch = [...s];                                 // whole characters, so an emoji types as one key
     let j = 0;
-    while (j < s.length && t >= typeGap(i, j, s)) t -= typeGap(i, j++, s);
-    if (j < s.length) return [s.slice(0, j), true];
+    while (j < ch.length && t >= typeGap(i, j, ch)) t -= typeGap(i, j++, ch);
+    if (j < ch.length) return [ch.slice(0, j).join(''), true];
     if (t < hold) return [s, false];
     t -= hold;
     let k = 0;
-    while (k < s.length && t >= backGap(i, k)) t -= backGap(i, k++);
-    if (k < s.length) return [s.slice(0, s.length - k), true];
+    while (k < ch.length && t >= backGap(i, k)) t -= backGap(i, k++);
+    if (k < ch.length) return [ch.slice(0, ch.length - k).join(''), true];
     if (t < GAP) return ['', false];
     t -= GAP;
   }
