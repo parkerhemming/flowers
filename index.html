@@ -28,7 +28,7 @@
     transition:opacity .8s ease,transform .8s ease;white-space:pre}
   /* the backing lives on a pseudo-element inset to the middle of the frame glyphs, so
      it ends exactly at the drawn lines instead of filling the edge character cells */
-  #hint::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88)}   /* measured ink edges of the - and | glyphs */
+  #hint::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88);border-radius:3px}   /* measured ink edges of the - and | glyphs */
   body.paused #hint{opacity:1;transform:translate(-50%,-50%);animation:float 2.6s ease-in-out .8s infinite}
   @keyframes float{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,calc(-50% - 5px))}}
   /* the (i) button and its ASCII-framed info panel */
@@ -41,8 +41,9 @@
   /* the note: top centre, on the same line as the two corner buttons; fades in once the bloom is done */
   #note{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);margin:0;
     height:44px;line-height:44px;white-space:nowrap;font-size:13px;color:#ffd6dc;opacity:0;pointer-events:none;
-    transition:opacity .5s ease}
+    transition:opacity .9s ease}
   body.bloomed #note{opacity:.7}
+  body.bloomed.paused #note{opacity:.3}                 /* dims with the flowers while the tap hint is up */
   #note .cursor{animation:blink 1.05s steps(1) infinite}
   #note.typing .cursor{animation:none}                  /* solid while typing, like a real caret */
   @keyframes blink{50%{opacity:0}}
