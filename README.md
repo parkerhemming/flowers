@@ -19,7 +19,7 @@ Aria is in Thailand, so the bouquet is made from flowers that carry romantic mea
 2. **The wind.** Once open, the bouquet sways in slow gusts. Taller flowers swing further and lag behind, heads nod, and leaves flutter.
 3. **The hint.** If she hasn't tapped yet, the scene dims and a small prompt invites her to tap the flowers.
 4. **Her name.** Tapping the flowers physically rearranges them to spell "Aria". The heads travel to the letters while their stems bend to stay attached. Tapping again sends them home. Tapping mid-way turns the motion around with a little momentum.
-5. **The note.** A line types itself out at the bottom: "to aria, from parker". Every so often it backspaces and types one of a few other messages.
+5. **The note.** A line types itself out at the bottom: "to: aria, from: parker". Every so often it backspaces and types one of a few other messages.
 
 The `[i]` button explains the flowers. `[↺]` replays everything from the start. On an iPhone, the info panel also shows how to add the page to the home screen, where it gets its own rose icon and opens full screen.
 

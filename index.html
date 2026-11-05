@@ -79,7 +79,7 @@
 </style>
 <canvas id="c" aria-label="An ASCII-art bouquet of roses, dok rak and orchids for Aria"></canvas>
 <pre id="hint" role="status" aria-live="polite"></pre>
-<p id="note" class="mono" aria-label="to aria, from parker"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
+<p id="note" class="mono" aria-label="to: aria, from: parker"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
@@ -754,9 +754,9 @@ const hint = document.getElementById('hint');
 }
 
 // ---- the note ----
-// Types "to aria, from parker", and every so often backspaces it away and types one
+// Types "to: aria, from: parker", and every so often backspaces it away and types one
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
-const NOTE = 'to aria, from parker';
+const NOTE = 'to: aria, from: parker';
 const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames'];
 const GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
 // backspacing is tapped, not held: each press gets its own uneven gap, with the odd
