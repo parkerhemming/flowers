@@ -68,14 +68,14 @@
   #info.pinned.open{transform:none}
   #info::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.93);border-radius:3px}
   #info .frame{position:absolute;inset:0;margin:0;font:inherit;color:#ffd6dc;text-shadow:0 0 12px rgba(255,120,150,.45);pointer-events:none;white-space:pre}
-  #info .scroll{position:relative;max-height:calc(100dvh - 150px);overflow:auto;font-size:12.5px;line-height:1.55}
-  #info h2{margin:0 0 10px;font-size:13px;font-weight:600;color:#ffd6dc;letter-spacing:.02em}
+  #info .scroll{position:relative;font-size:12.5px;line-height:1.55}   /* never scrolls: JS shrinks the text to fit */
+  #info h2{margin:0 0 .8em;font-size:1.04em;font-weight:600;color:#ffd6dc;letter-spacing:.02em}
   #info dl{margin:0}
-  #info dt{margin-top:10px;font-weight:600}
+  #info dt{margin-top:.8em;font-weight:600}
   #info dd{margin:2px 0 0;color:#cbbfc4}
   #info .th{font-weight:400;opacity:.8}
-  #info p{margin:14px 0 0;color:#9d9096;font-size:11.5px}
-  #keep{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(255,214,220,.25);color:#cbbfc4}
+  #info p{margin:1.1em 0 0;color:#9d9096;font-size:.92em}
+  #keep{margin-top:.95em;padding-top:.8em;border-top:1px dashed rgba(255,214,220,.25);color:#cbbfc4}
   #keep .share{width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
   @media (prefers-reduced-motion:reduce){#hint .bob{animation:none}#info{transition:none}#note .cursor{animation:none}}
 </style>
@@ -888,6 +888,10 @@ if (!still) {
     fitRows(cols, lh);
   }
   function fitRows(cols, lh) {                          // height in whole lines, then draw the frame
+    // shrink the text (never below 9.5px) until the panel fits above the note, so it never scrolls
+    const body = info.querySelector('.scroll'), room = noteEl.getBoundingClientRect().top - 10 - info.offsetTop;
+    let fs = 12.5; body.style.fontSize = fs + 'px';
+    while (info.getBoundingClientRect().height > room && fs > 9.5) body.style.fontSize = (fs -= .25) + 'px';
     const rows = Math.ceil(info.getBoundingClientRect().height / lh);
     info.style.height = rows * lh + 'px';
     const bar = '-'.repeat(cols - 2);
