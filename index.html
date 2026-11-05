@@ -263,7 +263,7 @@ function orchid(cx, cy, r, rot) {
   s.restore();
 }
 // ---------- greenery ----------
-function leaf(x0, y0, ang, len, w) {
+function leaf(x0, y0, ang, len, w, dark = 0) {
   const e = ease((P - .05) * 1.6); if (e <= 0) return;
   len *= e;
   s.save(); s.translate(x0, y0); s.rotate(ang);
@@ -278,19 +278,23 @@ function leaf(x0, y0, ang, len, w) {
     s.beginPath(); s.moveTo(0, -len * k); s.lineTo(w * .6, -len * (k + .08)); s.moveTo(0, -len * k); s.lineTo(-w * .6, -len * (k + .08));
     s.strokeStyle = 'rgba(155,220,132,.45)'; s.lineWidth = w * .05; s.stroke();
   }
+  if (dark > 0) {                                      // depth: leaves further back sit in shadow
+    s.beginPath(); s.moveTo(0, 0); s.quadraticCurveTo(w, -len * .45, 0, -len); s.quadraticCurveTo(-w, -len * .45, 0, 0);
+    s.fillStyle = `rgba(4,12,6,${dark})`; s.fill();
+  }
   s.restore();
 }
-function fern(x0, y0, cx1, cy1, x1, y1) {
+function fern(x0, y0, cx1, cy1, x1, y1, dark = .3) {
   const e = ease(P * 1.8); if (e <= 0) return;
   const pt = t => [(1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx1 + t * t * x1, (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy1 + t * t * y1];
   s.beginPath(); for (let t = 0; t <= e; t += .02) s.lineTo(...pt(t));
-  s.strokeStyle = '#2f6b35'; s.lineWidth = .5; s.stroke();
+  s.strokeStyle = shade('#2f6b35', -dark); s.lineWidth = .5; s.stroke();
   for (let t = .42; t < e; t += .028) {
     const [px, py] = pt(t), [qx, qy] = pt(t + .01), a = Math.atan2(qy - py, qx - px), L = Math.sin((t - .38) / .62 * Math.PI) * 5 + 1;
     for (const sd of [-1, 1]) {
       s.save(); s.translate(px, py); s.rotate(a + sd * 1.05);
       s.beginPath(); s.ellipse(L * .5, 0, L * .5, L * .16, 0, 0, TAU);
-      s.fillStyle = sd > 0 ? '#2f7a3b' : '#4f9a45'; s.fill(); s.restore();
+      s.fillStyle = shade(sd > 0 ? '#2f7a3b' : '#4f9a45', -dark + (t - .42) * .5); s.fill(); s.restore();
     }
   }
 }
@@ -303,7 +307,11 @@ const TIE = [3, -34];
 const smooth = t => { t = clamp01(t); return t * t * t * (t * (6 * t - 15) + 10); };   // smootherstep
 let seed2 = 99;
 const rnd2 = () => (seed2 = (seed2 * 16807) % 2147483647) / 2147483647;
-const GREENS = ['#2a5e30', '#3f8f4a', '#356f37', '#4f9a45', '#5a8a3a'];
+const GREENS = ['#245228', '#2a5e30', '#3f8f4a', '#356f37', '#4f9a45', '#5a8a3a', '#62a84f'];
+function shade(hex, f) {                               // f > 0 lightens toward white, f < 0 darkens toward black
+  const n = parseInt(hex.slice(1), 16), m = v => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f));
+  return `rgb(${m(n >> 16)},${m(n >> 8 & 255)},${m(n & 255)})`;
+}
 const stemProps = o => Object.assign(o, {
   bend: (rnd2() - .5) * 10, j1: (rnd2() - .5) * 4, j2: (rnd2() - .5) * 2.4,
   ex: TIE[0] + (rnd2() - .5) * 13, ey: -15 + rnd2() * 4, col: GREENS[rnd2() * 5 | 0], w: .45 + rnd2() * .3,
@@ -432,7 +440,13 @@ function drawStem(o, hx, hy, thin = 0, g = 1) {
   const cx = TIE[0] + (o.ex - TIE[0]) * .25, cy = TIE[1] + 7, [x0, y0] = C[3];
   s.moveTo(x0, y0);                                                             // the cut end below the tie
   for (let i = 1; i <= 8; i++) { const tt = g * i / 8, u = 1 - tt; s.lineTo(u * u * x0 + 2 * u * tt * cx + tt * tt * o.ex, u * u * y0 + 2 * u * tt * cy + tt * tt * o.ey); }
-  s.globalAlpha = 1 - .55 * thin; s.strokeStyle = o.col; s.lineWidth = o.w * (1 - .45 * thin); s.stroke(); s.globalAlpha = 1;
+  const back = -.4 * (1 - clamp01((o.z ?? 4) / 8));   // stems deeper in the bunch sit in shadow
+  const grad = s.createLinearGradient(C[0][0], C[0][1], o.ex, o.ey);
+  grad.addColorStop(0, shade(o.col, back + .25));      // lit up near the flower
+  grad.addColorStop(.55, shade(o.col, back));
+  grad.addColorStop(.82, shade(o.col, back - .4));     // packed together at the tie: darkest
+  grad.addColorStop(1, shade(o.col, back - .15));
+  s.globalAlpha = 1 - .55 * thin; s.strokeStyle = grad; s.lineWidth = o.w * (1 - .45 * thin); s.stroke(); s.globalAlpha = 1;
 }
 
 // ---- bloom timings (seconds after load) ----
@@ -583,7 +597,7 @@ function scene(M, T = 1e3, wind = 1) {
     const reached = grow(l.host.g0, l.host.gD) - (1 - tt);
     if (reached <= 0) return;
     const flutter = WA * .07 * Math.sin(T * 3.1 + l.phase) * (.6 + .4 * Math.sin(T * .7 + l.phase));
-    P = smooth(reached / .3); leaf(px, py, a0 + (a1 - a0) * he + flutter, l.len * (1 - .5 * he), l.w * (1 - .35 * he)); P = 1;
+    P = smooth(reached / .3); leaf(px, py, a0 + (a1 - a0) * he + flutter, l.len * (1 - .5 * he), l.w * (1 - .35 * he), .5 * clamp01((6.5 - l.z) / 4)); P = 1;
   }]);
 
   items.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
@@ -675,7 +689,7 @@ function frame(M, T = 1e3, wind = 1) {
       code = idx + 10; glyph = RAMP[idx];
     }
     hist[kk] = code;
-    const mx = Math.max(R[kk], G[kk], B[kk], 1), gain = Math.min(255 / mx, Math.max(1.3 + .9 * (1 - l), (175 + 80 * l) / mx));
+    const mx = Math.max(R[kk], G[kk], B[kk], 1), gain = Math.min(255 / mx, Math.max(1.25 + .6 * (1 - l), (95 + 160 * Math.sqrt(l)) / mx));   // bright, but darker stays darker
     // bucket by colour (5 bits/channel) so fillStyle changes a few hundred times, not thousands
     const key = (Math.min(255, R[kk] * gain) >> 3) << 10 | (Math.min(255, G[kk] * gain) >> 3) << 5 | (Math.min(255, B[kk] * gain) >> 3);
     let bucket = buckets.get(key);
