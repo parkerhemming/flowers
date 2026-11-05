@@ -853,11 +853,11 @@ if (!still) {
     const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
     document.getElementById('keep').hidden = !(iOS && !otherApp && !installed);
   }
-  const frame = info.querySelector('.frame'), scroll = info.querySelector('.scroll');
+  const infoFrame = info.querySelector('.frame');   // (not `frame`: that's the render function)
   function fitInfo() {
     // character cell of the frame font, measured in place
     const probe = Object.assign(document.createElement('span'), { textContent: '0'.repeat(20) });
-    frame.appendChild(probe); const cw = probe.getBoundingClientRect().width / 20; probe.remove();
+    infoFrame.appendChild(probe); const cw = probe.getBoundingClientRect().width / 20; probe.remove();
     const lh = parseFloat(getComputedStyle(info).lineHeight);
     let cols;
     if (innerWidth < 768) {
@@ -869,20 +869,20 @@ if (!still) {
       const L = box(replay).left - mo.actualBoundingBoxLeft;
       const Rr = box(btn).right - mc.width + mc.actualBoundingBoxRight;
       // where the "|" ink sits inside its character cell (measured, not assumed)
-      k.font = getComputedStyle(frame).font;
+      k.font = getComputedStyle(infoFrame).font;
       const m = k.measureText('|'), inL = -m.actualBoundingBoxLeft, inR = m.actualBoundingBoxRight;
       // whole characters can't hit both edges exactly, so stretch the frame's letter spacing a
       // fraction of a pixel until the right "|" lands on the right edge of [i]
       const span = Rr - L - (inR - inL);
       cols = Math.round(span / cw) + 1;
       const step = span / (cols - 1);
-      frame.style.letterSpacing = (step - cw) + 'px';
+      infoFrame.style.letterSpacing = (step - cw) + 'px';
       info.style.left = (L - inL) + 'px'; info.classList.add('pinned');
       info.style.width = (cols - 1) * step + cw + 'px'; info.style.height = '';
       fitRows(cols, lh); return;
     } else {
       cols = Math.max(20, Math.floor(360 / cw));
-      info.style.left = ''; info.classList.remove('pinned'); frame.style.letterSpacing = '';
+      info.style.left = ''; info.classList.remove('pinned'); infoFrame.style.letterSpacing = '';
     }
     info.style.width = cols * cw + 'px'; info.style.height = '';
     fitRows(cols, lh);
@@ -891,7 +891,7 @@ if (!still) {
     const rows = Math.ceil(info.getBoundingClientRect().height / lh);
     info.style.height = rows * lh + 'px';
     const bar = '-'.repeat(cols - 2);
-    frame.textContent = `.${bar}.\n` + `|${' '.repeat(cols - 2)}|\n`.repeat(rows - 2) + `'${bar}'`;
+    infoFrame.textContent = `.${bar}.\n` + `|${' '.repeat(cols - 2)}|\n`.repeat(rows - 2) + `'${bar}'`;
   }
   addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
   const setInfo = open => { if (open) fitInfo(); info.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); };
