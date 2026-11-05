@@ -22,12 +22,13 @@
   canvas{display:block;position:fixed;inset:0;transition:filter .9s ease}
   body.paused canvas{filter:brightness(.42) saturate(.85)}
   #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
-    padding:.7em 2ch;background:rgba(11,10,13,.88);
-    border:1px dashed rgba(255,214,220,.7);            /* a real border, so the backing ends exactly at the frame */
 
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
     text-shadow:0 0 12px rgba(255,120,150,.45);opacity:0;pointer-events:none;
     transition:opacity .8s ease,transform .8s ease;white-space:pre}
+  /* the backing lives on a pseudo-element inset to the middle of the frame glyphs, so
+     it ends exactly at the drawn lines instead of filling the edge character cells */
+  #hint::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88)}   /* measured ink edges of the - and | glyphs */
   body.paused #hint{opacity:1;transform:translate(-50%,-50%);animation:float 2.6s ease-in-out .8s infinite}
   @keyframes float{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,calc(-50% - 5px))}}
   /* the (i) button and its ASCII-framed info panel */
@@ -688,7 +689,10 @@ addEventListener('resize', setup);
 // bloom or while a morph is still running are ignored, so spamming does nothing.
 const MORPH = 4, HINT_AFTER = 6;
 const hint = document.getElementById('hint');
-hint.innerHTML = `<b>${matchMedia('(pointer: fine)').matches ? 'click' : 'tap'}</b> the flowers`;
+{ // ASCII box sized to whichever verb fits the device
+  const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
+  hint.innerHTML = `.${'-'.repeat(inner.length)}.\n|  <b>${verb}</b> the flowers  |\n'${'-'.repeat(inner.length)}'`;
+}
 const NOTE = 'for aria, from parker', noteEl = document.getElementById('note'), typed = document.getElementById('typed');
 let typedN = -1;
 let from = 0, to = 0, tStart = -1e3, hinted = false, windScale = 1, lastT = 0;
