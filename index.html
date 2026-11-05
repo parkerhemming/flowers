@@ -34,6 +34,11 @@
     font-size:15px;cursor:pointer;transition:opacity .3s}
   #info-btn{right:calc(10px + env(safe-area-inset-right))}
   #replay{left:calc(10px + env(safe-area-inset-left))}
+  /* the note: top centre, on the same line as the two corner buttons; fades in once the bloom is done */
+  #note{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);margin:0;
+    height:44px;line-height:44px;white-space:nowrap;font-size:13px;color:#ffd6dc;opacity:0;pointer-events:none;
+    transition:opacity 1.6s ease}
+  body.bloomed #note{opacity:.7}
   #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -2px;font-size:1.3em;line-height:0;vertical-align:-.04em}
   .corner:hover,.corner:focus-visible,#info-btn[aria-expanded=true]{opacity:1}
   .corner:focus-visible{outline:1px dashed #ffd6dc;outline-offset:2px}
@@ -57,6 +62,7 @@
 </style>
 <canvas id="c" aria-label="An ASCII-art bouquet of roses, dok rak and orchids for Aria"></canvas>
 <pre id="hint" role="status" aria-live="polite"></pre>
+<p id="note" class="mono">for aria, from parker</p>
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
@@ -725,6 +731,7 @@ if (!still) {
   });
   (function loop() {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
+    document.body.classList.toggle('bloomed', T > BLOOM_END);
     if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); }
     // the wind eases in as the last flowers open, and nearly stops while paused
     const paused = document.body.classList.contains('paused');
