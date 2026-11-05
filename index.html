@@ -859,33 +859,33 @@ if (!still) {
     const probe = Object.assign(document.createElement('span'), { textContent: '0'.repeat(20) });
     infoFrame.appendChild(probe); const cw = probe.getBoundingClientRect().width / 20; probe.remove();
     const lh = parseFloat(getComputedStyle(info).lineHeight);
-    let cols;
+    // visible (ink) edges of the corner icons: the stroke of "[" in [↺] and of "]" in [i]
+    const box = el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
+    const k = document.createElement('canvas').getContext('2d');
+    k.font = getComputedStyle(replay).font; const mo = k.measureText('[');
+    k.font = getComputedStyle(btn).font; const mc = k.measureText(']');
+    const L = box(replay).left - mo.actualBoundingBoxLeft;
+    const Rr = box(btn).right - mc.width + mc.actualBoundingBoxRight;
+    // where the "|" ink sits inside its character cell (measured, not assumed)
+    k.font = getComputedStyle(infoFrame).font;
+    const m = k.measureText('|'), inL = -m.actualBoundingBoxLeft, inR = m.actualBoundingBoxRight;
+    info.classList.add('pinned'); info.style.height = '';
     if (innerWidth < 768) {
-      // visible (ink) edges of the corner icons: the stroke of "[" in [↺] and of "]" in [i]
-      const box = el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
-      const k = document.createElement('canvas').getContext('2d');
-      k.font = getComputedStyle(replay).font; const mo = k.measureText('[');
-      k.font = getComputedStyle(btn).font; const mc = k.measureText(']');
-      const L = box(replay).left - mo.actualBoundingBoxLeft;
-      const Rr = box(btn).right - mc.width + mc.actualBoundingBoxRight;
-      // where the "|" ink sits inside its character cell (measured, not assumed)
-      k.font = getComputedStyle(infoFrame).font;
-      const m = k.measureText('|'), inL = -m.actualBoundingBoxLeft, inR = m.actualBoundingBoxRight;
-      // whole characters can't hit both edges exactly, so stretch the frame's letter spacing a
-      // fraction of a pixel until the right "|" lands on the right edge of [i]
-      const span = Rr - L - (inR - inL);
-      cols = Math.round(span / cw) + 1;
-      const step = span / (cols - 1);
+      // phones: span from [↺] to [i]. Whole characters can't hit both edges exactly, so the
+      // frame's letter spacing stretches a fraction of a pixel to land on both
+      const span = Rr - L - (inR - inL), cols = Math.round(span / cw) + 1, step = span / (cols - 1);
       infoFrame.style.letterSpacing = (step - cw) + 'px';
-      info.style.left = (L - inL) + 'px'; info.classList.add('pinned');
-      info.style.width = (cols - 1) * step + cw + 'px'; info.style.height = '';
-      fitRows(cols, lh); return;
+      info.style.left = (L - inL) + 'px';
+      info.style.width = (cols - 1) * step + cw + 'px';
+      fitRows(cols, lh);
     } else {
-      cols = Math.max(20, Math.floor(360 / cw));
-      info.style.left = ''; info.classList.remove('pinned'); infoFrame.style.letterSpacing = '';
+      // desktop: a 360px panel whose right "|" lines up with the right edge of [i]
+      const cols = Math.max(20, Math.floor(360 / cw));
+      infoFrame.style.letterSpacing = '';
+      info.style.left = (Rr - inR - (cols - 1) * cw) + 'px';
+      info.style.width = cols * cw + 'px';
+      fitRows(cols, lh);
     }
-    info.style.width = cols * cw + 'px'; info.style.height = '';
-    fitRows(cols, lh);
   }
   function fitRows(cols, lh) {                          // height in whole lines, then draw the frame
     // shrink the text (never below 9.5px) until the panel fits above the note, so it never scrolls
