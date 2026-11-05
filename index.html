@@ -400,7 +400,7 @@ const STROKES = [
     g.forEach(u => { [u.tx, u.ty] = pts[idx++]; });
   });
   DOT.tx = (11 + 3) * 1.18 - 3; DOT.ty = -120;
-  units.forEach(u => u.delay = clamp01((u.tx + 56) / 108) * .22);       // ripples left to right
+  units.forEach(u => u.delay = clamp01((u.tx + 56) / 108) * .08);       // a slight left-to-right ripple
 })();
 
 // Stems leave the flower heading toward the tie (with a gentle sideways bow), so
@@ -481,7 +481,7 @@ function scene(M, T = 1e3, wind = 1) {
   const E = smooth(M), WA = wind * (1 - .5 * E);         // wind eases off while the name is held
   const Tb = T / BLOOM_SLOW, grow = (t0, d) => smooth((Tb - t0) / d);
   for (const u of units) {
-    const e = smooth((u.mm - u.delay) / .78);
+    const x = clamp01((u.mm - u.delay) / .92), e = .5 * x + .5 * smooth(x);   // half linear: moves from the first frame
     u.e = e;
     const mx = u.hx + (u.tx - u.hx) * e, my = u.hy + (u.ty - u.hy) * e - Math.sin(Math.PI * e) * 3.5;   // lifts a little mid-journey
     u.th = WA * windAngle(T, Math.hypot(mx - TIE[0], my - TIE[1]) / 90, u.phase);
@@ -692,7 +692,7 @@ addEventListener('resize', setup);
 // simply turns it around: M is eased toward its target with a smooth velocity, so a
 // reversal decelerates and comes back rather than snapping. Taps during the bloom are
 // ignored.
-const HINT_AFTER = 2.5, M_SPEED = 1 / 3.4;            // full morph takes ~4s with easing
+const HINT_AFTER = 2.5, M_SPEED = 1 / 2.8;            // a clean morph takes ~3s
 const hint = document.getElementById('hint');
 { // ASCII box sized to whichever verb fits the device
   const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
@@ -722,7 +722,7 @@ let shown = null;
 
 let target = 0, M = 0, Mv = 0, lagged = false, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
-  if (T < BLOOM_END) return;                          // still blooming: ignore
+  if (T < BLOOM_END - 1) return;                      // ignored until the bloom has (visibly) finished
   const finished = M === target && Mv === 0 && !lagged;
   target = 1 - target;
   if (finished) {                                     // clean morph: everything together, moving from the first frame
