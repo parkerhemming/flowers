@@ -459,6 +459,7 @@ const ferns = [{ g0: .7 }, { g0: 1.0 }, { g0: .85 }];
   // uneven cut ends: about a third of the stems poke out further below the tie
   // (done last so it doesn't shift any other random choice)
   for (const o of [...units, ...clusters]) o.ey += rnd2() < .35 ? 2.5 + rnd2() * 3.5 : -rnd2() * 1.5;
+  for (const u of units) { u.follow = 1.5 + Math.min(1, u.z / 8) * 2.2 + rnd2() * .8; u.mm = 0; }
 })();
 const BLOOM_SLOW = 1.25;                                 // stretch the whole bloom to ~7s
 const BLOOM_END = Math.max(...units.map(u => u.b0 + u.bD)) * BLOOM_SLOW;
@@ -480,7 +481,7 @@ function scene(M, T = 1e3, wind = 1) {
   const E = smooth(M), WA = wind * (1 - .5 * E);         // wind eases off while the name is held
   const Tb = T / BLOOM_SLOW, grow = (t0, d) => smooth((Tb - t0) / d);
   for (const u of units) {
-    const e = smooth((M - u.delay) / .78);
+    const e = smooth((u.mm - u.delay) / .78);
     u.e = e;
     const mx = u.hx + (u.tx - u.hx) * e, my = u.hy + (u.ty - u.hy) * e - Math.sin(Math.PI * e) * 3.5;   // lifts a little mid-journey
     u.th = WA * windAngle(T, Math.hypot(mx - TIE[0], my - TIE[1]) / 90, u.phase);
@@ -596,7 +597,7 @@ let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.g
 function setup() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);   // 3x phones gain nothing visible
   c.style.width = W + 'px'; c.style.height = H + 'px';
-  const cols = +q.get('cols') || Math.round(Math.max(110, Math.min(250, W / 5.6)));
+  const cols = +q.get('cols') || Math.round(Math.max(120, Math.min(250, W / 5.6)));
   const cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
   c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
   S.width = cols * SS; S.height = rows * SS; prevL = null; hist = null;
@@ -607,6 +608,7 @@ function setup() {
 }
 function frame(M, T = 1e3, wind = 1) {
   cur = [M, T, wind];
+  if (still) for (const u of units) u.mm = M;
   const { W, H, cols, rows, cw, ch, fs, k } = G_;
   s.setTransform(1, 0, 0, 1, 0, 0); s.clearRect(0, 0, S.width, S.height);
   s.setTransform(SS / cw, 0, 0, SS / ch, 0, 0);                // screen px -> sample px
@@ -685,24 +687,54 @@ function frame(M, T = 1e3, wind = 1) {
 setup();
 addEventListener('resize', setup);
 // ---- timeline ----
-// bloom (~7s) -> idle in the wind -> after a while the scene "pauses" (dims, wind
-// slows) and a hint appears -> each tap toggles bouquet <-> "Aria". Taps during the
-// bloom or while a morph is still running are ignored, so spamming does nothing.
-const MORPH = 4, HINT_AFTER = 6;
+// bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
+// slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
+// simply turns it around: M is eased toward its target with a smooth velocity, so a
+// reversal decelerates and comes back rather than snapping. Taps during the bloom are
+// ignored.
+const HINT_AFTER = 2.5, M_SPEED = 1 / 3.4;            // full morph takes ~4s with easing
 const hint = document.getElementById('hint');
 { // ASCII box sized to whichever verb fits the device
   const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
   hint.innerHTML = `.${'-'.repeat(inner.length)}.\n|  <b>${verb}</b> the flowers  |\n'${'-'.repeat(inner.length)}'`;
 }
-const NOTE = 'for aria, from parker', noteEl = document.getElementById('note'), typed = document.getElementById('typed');
-let typedN = -1;
-let from = 0, to = 0, tStart = -1e3, hinted = false, windScale = 1, lastT = 0;
-const morphAt = T => from + (to - from) * clamp01((T - tStart) / MORPH);
+
+// ---- the note ----
+// Types "for aria, from parker", and every so often backspaces it away and types one
+// of these instead, then goes back. Driven by the same clock, so replay restarts it.
+const NOTE = 'for aria, from parker';
+const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'ily L,,|'];
+const TYPE = .075, BACK = .035, GAP = .45, HOLD_MAIN = 14, HOLD_MSG = 6;
+function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
+  if (t < 0) return ['', false];
+  for (let i = 0; ; i++) {
+    const s = i % 2 ? NOTES[(i >> 1) % NOTES.length] : NOTE, hold = i % 2 ? HOLD_MSG : HOLD_MAIN;
+    const ty = s.length * TYPE, bk = s.length * BACK;
+    if (t < ty) return [s.slice(0, Math.floor(t / TYPE)), true];
+    if ((t -= ty) < hold) return [s, false];
+    if ((t -= hold) < bk) return [s.slice(0, s.length - 1 - Math.floor(t / BACK)), true];
+    if ((t -= bk) < GAP) return ['', false];
+    t -= GAP;
+  }
+}
+const noteEl = document.getElementById('note'), typed = document.getElementById('typed');
+let shown = null;
+
+let target = 0, M = 0, Mv = 0, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
-  if (T < BLOOM_END || T < tStart + MORPH) return;        // still blooming or mid-morph: ignore
-  from = to; to = 1 - to; tStart = T;
+  if (T < BLOOM_END) return;                          // still blooming: ignore
+  target = 1 - target;                                // mid-morph this just turns it around
   hinted = true;
   document.body.classList.remove('paused');
+}
+function stepMorph(dt) {
+  const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
+  Mv += (want - Mv) * Math.min(1, dt * 1.4);            // heavy: an interrupted morph drifts on a beat before turning back
+  M = clamp01(M + Mv * dt);
+  if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
+  // parallax: every flower trails M with its own lag (deeper ones lag more), so on a
+  // reversal they don't all turn at once
+  for (const u of units) u.mm += (M - u.mm) * Math.min(1, dt * u.follow);
 }
 if (!still) {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -726,7 +758,8 @@ if (!still) {
     hinted = hinted && !document.body.classList.contains('paused');
     document.body.classList.remove('paused');
     setInfo(false);
-    t0 = start(); from = to = 0; tStart = -1e3; windScale = 1; lastT = 0;
+    t0 = start(); target = M = Mv = 0; windScale = 1; lastT = 0; shown = null;
+    for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
   });
   addEventListener('pointerdown', e => {
@@ -743,14 +776,15 @@ if (!still) {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
     const typeAt = BLOOM_END - .6;                    // starts typing as the last flowers finish opening
     document.body.classList.toggle('bloomed', T > typeAt - .3);
-    const n = Math.max(0, Math.min(NOTE.length, Math.floor((T - typeAt) / .075)));   // ~13 chars/s
-    if (n !== typedN) { typedN = n; typed.textContent = NOTE.slice(0, n); }
-    noteEl.classList.toggle('typing', n > 0 && n < NOTE.length);
+    const [txt, busy] = noteAt(T - typeAt);
+    if (txt !== shown) { shown = txt; typed.textContent = txt; }
+    noteEl.classList.toggle('typing', busy);
     if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); }
     // the wind eases in as the last flowers open, and nearly stops while paused
     const paused = document.body.classList.contains('paused');
     windScale += ((paused ? .25 : 1) - windScale) * Math.min(1, dt * 1.5);
-    frame(morphAt(T), calm ? 1e3 : T, calm ? 0 : smooth((T - 3.5) / 3) * windScale);
+    stepMorph(dt);
+    frame(M, calm ? 1e3 : T, calm ? 0 : smooth((T - 3.5) / 3) * windScale);
     requestAnimationFrame(loop);
   })();
 }
