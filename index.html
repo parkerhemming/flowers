@@ -29,7 +29,10 @@
      only fades + slides the outer box and nothing snaps */
   #hint .bob{display:inline-block;position:relative;animation:bob 2.6s ease-in-out infinite}
   #hint .bob::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88);border-radius:3px}   /* measured ink edges of the - and | glyphs */
-  body.paused #hint{opacity:1;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer}   /* clickable while shown */
+  body.paused #hint{opacity:1;transform:translate(-50%,-50%)}
+  /* only the backing (trimmed exactly to the frame lines) is clickable while shown, so the
+     hand cursor stops at the border instead of a few px outside it */
+  body.paused #hint .bob::before{pointer-events:auto;cursor:pointer}
   @keyframes bob{50%{transform:translateY(-5px)}}
   /* the (i) button and its ASCII-framed info panel */
   .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
