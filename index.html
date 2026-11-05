@@ -724,7 +724,11 @@ function onFlowers(px, py, reach) {
   return false;
 }
 // a hand cursor over the flowers
-addEventListener('mousemove', e => { c.style.cursor = onFlowers(e.clientX, e.clientY, 6) ? 'pointer' : ''; });
+// While the tap hint is up, only the hint box shows the hand (clicking the flowers
+// still works; this is just the cursor).
+let mouse = null;
+const updateCursor = () => { c.style.cursor = mouse && !document.body.classList.contains('paused') && onFlowers(mouse[0], mouse[1], 6) ? 'pointer' : ''; };
+addEventListener('mousemove', e => { mouse = [e.clientX, e.clientY]; updateCursor(); });
 // ---- timeline ----
 // bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
 // slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
@@ -803,6 +807,7 @@ function toggle(T) {
   } else lagged = true;                               // interrupted mid-morph: momentum + parallax turnaround
   hinted = true;
   document.body.classList.remove('paused');
+  updateCursor();
 }
 function stepMorph(dt) {
   // seconds until M arrives; the parallax and the drift are squeezed to fit inside it,
@@ -868,7 +873,7 @@ if (!still) {
     const [txt, busy] = noteAt(T - typeAt);
     if (txt !== shown) { shown = txt; typed.textContent = txt; }
     noteEl.classList.toggle('typing', busy);
-    if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); }
+    if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); updateCursor(); }
     // the wind eases in as the last flowers open, and nearly stops while paused
     const paused = document.body.classList.contains('paused');
     windScale += ((paused ? .25 : 1) - windScale) * Math.min(1, dt * 1.5);
