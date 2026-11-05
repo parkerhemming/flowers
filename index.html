@@ -894,8 +894,41 @@ if (!still) {
     while (info.getBoundingClientRect().height > room && fs > 9.5) body.style.fontSize = (fs -= .25) + 'px';
     const rows = Math.ceil(info.getBoundingClientRect().height / lh);
     info.style.height = rows * lh + 'px';
-    const bar = '-'.repeat(cols - 2);
-    infoFrame.textContent = `.${bar}.\n` + `|${' '.repeat(cols - 2)}|\n`.repeat(rows - 2) + `'${bar}'`;
+    // Colour each frame line after the text beside it (a flower section takes its name's
+    // colour), blending smoothly between sections so the sides read as a gradient.
+    const top = info.getBoundingClientRect().top, rgb = el => getComputedStyle(el).color.match(/\d+/g).slice(0, 3).map(Number);
+    const anchors = [];                                  // [vertical centre, colour] per block of text
+    const add = (els, colourEl) => {
+      const rs = els.map(e => e.getBoundingClientRect()).filter(r => r.height);
+      if (rs.length) anchors.push([(Math.min(...rs.map(r => r.top)) + Math.max(...rs.map(r => r.bottom))) / 2 - top, rgb(colourEl)]);
+    };
+    const h2 = body.querySelector('h2'); add([h2], h2);
+    body.querySelectorAll('dt').forEach(dt => add([dt, dt.nextElementSibling], dt));
+    const foot = body.querySelector('p'); add([foot], foot);
+    const keep = body.querySelector('#keep'); if (!keep.hidden) add([keep], keep.firstElementChild);
+    const colourAt = y => {
+      if (y <= anchors[0][0]) return anchors[0][1];
+      for (let i = 1; i < anchors.length; i++) if (y <= anchors[i][0]) {
+        const [y0, c0] = anchors[i - 1], [y1, c1] = anchors[i], f = (y - y0) / (y1 - y0);
+        return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
+      }
+      return anchors[anchors.length - 1][1];
+    };
+    const paint = (text, [cr, cg, cb]) => `<span style="color:rgb(${cr},${cg},${cb});text-shadow:0 0 12px rgba(${cr},${cg},${cb},.4)">${text}</span>`;
+    // top/bottom bars: sweep through every section colour from both corners toward the
+    // middle (top starts at the title's colour, bottom at the last section's), so each
+    // corner matches the side it meets and the colour runs all the way round
+    const palette = anchors.map(a => a[1]);
+    const sweep = (i, fromEnd) => {
+      const f = 1 - Math.abs(2 * i / (cols - 1) - 1);            // 0 at both corners, 1 in the middle
+      const p = (fromEnd ? 1 - f : f) * (palette.length - 1), k = Math.min(palette.length - 2, Math.floor(p)), w = p - k;
+      return palette.length < 2 ? palette[0] : palette[k].map((v, n) => Math.round(v + (palette[k + 1][n] - v) * w));
+    };
+    const barLine = (ends, fromEnd) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, sweep(i, fromEnd))).join('');
+    const lines = [barLine('..', false)];
+    for (let r = 1; r < rows - 1; r++) lines.push(paint(`|${' '.repeat(cols - 2)}|`, colourAt((r + .5) * lh)));
+    lines.push(barLine("''", true));
+    infoFrame.innerHTML = lines.join('\n');
   }
   addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
   const setInfo = open => { if (open) fitInfo(); info.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); };
