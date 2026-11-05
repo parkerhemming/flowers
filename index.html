@@ -942,10 +942,12 @@ if (!still) {
       }
       return w ? acc.map(v => Math.round(v / w)) : [255, 214, 220];
     };
-    const barLine = (ends, y) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, mixAt((i + .5) * cw2, y))).join('');
-    const lines = [barLine('..', .5 * lh)];
+    // top bar from the text below it; the bottom bar is the same colours mirrored left-right
+    const topColours = [...Array(cols)].map((_, i) => mixAt((i + .5) * cw2, .5 * lh));
+    const barLine = (ends, colours) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, colours[i])).join('');
+    const lines = [barLine('..', topColours)];
     for (let r = 1; r < rows - 1; r++) lines.push(paint(`|${' '.repeat(cols - 2)}|`, colourAt((r + .5) * lh)));
-    lines.push(barLine("''", (rows - .5) * lh));
+    lines.push(barLine("''", [...topColours].reverse()));
     infoFrame.innerHTML = lines.join('\n');
   }
   addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
