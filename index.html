@@ -720,21 +720,27 @@ function noteAt(t) {                                   // t = seconds since typi
 const noteEl = document.getElementById('note'), typed = document.getElementById('typed');
 let shown = null;
 
-let target = 0, M = 0, Mv = 0, hinted = false, windScale = 1, lastT = 0;
+let target = 0, M = 0, Mv = 0, lagged = false, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
   if (T < BLOOM_END) return;                          // still blooming: ignore
-  target = 1 - target;                                // mid-morph this just turns it around
+  // from a finished state: the clean morph. Interrupting one already in motion turns
+  // it around with momentum + per-flower lag (the parallax feel) until it settles.
+  if (!(M === target && Mv === 0)) lagged = true;
+  target = 1 - target;
   hinted = true;
   document.body.classList.remove('paused');
 }
 function stepMorph(dt) {
   const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
-  Mv += (want - Mv) * Math.min(1, dt * 1.4);            // heavy: an interrupted morph drifts on a beat before turning back
+  Mv += (want - Mv) * Math.min(1, dt * (lagged ? 1.4 : 5));   // interrupted: heavy, drifts on a beat before turning back
   M = clamp01(M + Mv * dt);
   if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
+  if (!lagged) { for (const u of units) u.mm = M; return; }
   // parallax: every flower trails M with its own lag (deeper ones lag more), so on a
-  // reversal they don't all turn at once
-  for (const u of units) u.mm += (M - u.mm) * Math.min(1, dt * u.follow);
+  // reversal they don't all turn at once. Once all of them have arrived, back to normal.
+  let settled = M === target;
+  for (const u of units) { u.mm += (M - u.mm) * Math.min(1, dt * u.follow); if (Math.abs(u.mm - M) > .001) settled = false; }
+  if (settled) { lagged = false; for (const u of units) u.mm = M; }
 }
 if (!still) {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -758,7 +764,7 @@ if (!still) {
     hinted = hinted && !document.body.classList.contains('paused');
     document.body.classList.remove('paused');
     setInfo(false);
-    t0 = start(); target = M = Mv = 0; windScale = 1; lastT = 0; shown = null;
+    t0 = start(); target = M = Mv = 0; lagged = false; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
   });
