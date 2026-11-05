@@ -788,7 +788,7 @@ function stepMorph(dt) {
   // so the effect never outlasts the morph or makes a short trip feel sluggish
   const rem = Math.max(.05, Math.abs(target - M) / M_SPEED);
   const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
-  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(14, Math.max(1.4, 1.2 / rem, 2.2 / drift)) : 5));
+  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(14, Math.max(4, 1.2 / rem, 2.2 / drift)) : 5));
   M = clamp01(M + Mv * dt);
   if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
   if (!lagged) { for (const u of units) u.mm = M; return; }
@@ -796,7 +796,7 @@ function stepMorph(dt) {
   // faster as the remaining time runs out so they all land together with M
   let settled = M === target;
   for (const u of units) {
-    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow, 3 / rem, 2.5 / drift));
+    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow * 2.2, 3 / rem, 2.5 / drift));   // light lag: a stagger, not a stall
     if (Math.abs(u.mm - M) > .001) settled = false;
   }
   if (settled) { lagged = false; for (const u of units) u.mm = M; }
