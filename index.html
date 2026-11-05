@@ -715,10 +715,27 @@ const hash = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.54
 const backGap = (i, k) => .085 + .11 * hash(i, k) + (hash(k, i + 7) < .12 ? .22 : 0);
 // typing is human too: uneven key gaps, a beat after spaces and commas, the odd pause
 const typeGap = (i, k, s) => .05 + .07 * hash(i, k + 50) + (k && ' ,'.includes(s[k - 1]) ? .07 : 0) + (hash(k + 50, i) < .07 ? .2 : 0);
+// Messages come from a shuffled deck: all of them play before any repeats, each round
+// is reshuffled (never the same message twice in a row), the order differs per visit,
+// and replay carries on through the deck instead of starting over.
+const deckSeed = Math.floor(Math.random() * 1e6);
+let deckOffset = 0, noteCycle = 0;
+const decks = new Map();
+function deck(r) {
+  if (!decks.has(r)) {
+    const d = NOTES.map((_, k) => k);
+    for (let k = d.length - 1; k > 0; k--) { const j = Math.floor(hash(deckSeed + r, k) * (k + 1)); [d[k], d[j]] = [d[j], d[k]]; }
+    if (r > 0 && d[0] === deck(r - 1)[d.length - 1]) [d[0], d[1]] = [d[1], d[0]];
+    decks.set(r, d);
+  }
+  return decks.get(r);
+}
+const message = m => NOTES[deck(Math.floor(m / NOTES.length))[m % NOTES.length]];
 function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
   if (t < 0) return ['', false];
   for (let i = 0; ; i++) {
-    const s = i % 2 ? NOTES[(i >> 1) % NOTES.length] : NOTE, hold = i % 2 ? HOLD_MSG : HOLD_MAIN;
+    noteCycle = i;
+    const s = i % 2 ? message((i >> 1) + deckOffset) : NOTE, hold = i % 2 ? HOLD_MSG : HOLD_MAIN;
     let j = 0;
     while (j < s.length && t >= typeGap(i, j, s)) t -= typeGap(i, j++, s);
     if (j < s.length) return [s.slice(0, j), true];
@@ -790,6 +807,7 @@ if (!still) {
     hinted = hinted && !document.body.classList.contains('paused');
     document.body.classList.remove('paused');
     setInfo(false);
+    deckOffset += (noteCycle + 1) >> 1;                 // messages already shown this run
     t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
