@@ -32,7 +32,7 @@
   body.paused #hint{opacity:1;transform:translate(-50%,-50%)}
   /* only the backing (trimmed exactly to the frame lines) is clickable while shown, so the
      hand cursor stops at the border instead of a few px outside it */
-  body.paused #hint .bob::before{pointer-events:auto;cursor:pointer}
+  body.paused #hint .bob::before{pointer-events:auto}   /* cursor is set from JS (see updateCursor) */
   @keyframes bob{50%{transform:translateY(-5px)}}
   /* the (i) button and its ASCII-framed info panel */
   .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
@@ -56,7 +56,7 @@
      (it ignores the solid status-bar setting), so the corner buttons sit just below it */
   body.app .corner{top:calc(env(safe-area-inset-top) + 32px)}
   body.app #info{top:calc(env(safe-area-inset-top) + 80px)}
-  #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -2px;font-size:1.3em;line-height:0;vertical-align:-.04em}
+  #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -3px;font-size:1.3em;line-height:0;vertical-align:-.04em}
   .corner:hover,.corner:focus-visible,#info-btn[aria-expanded=true]{opacity:1}
   .corner:focus-visible{outline:1px dashed #ffd6dc;outline-offset:2px}
   /* Info panel: centred, framed with the same ASCII box as the tap hint (same font, size,
@@ -741,7 +741,18 @@ function onFlowers(px, py, reach) {
 // While the tap hint is up, only the hint box shows the hand (clicking the flowers
 // still works; this is just the cursor).
 let mouse = null;
-const updateCursor = () => { c.style.cursor = mouse && !document.body.classList.contains('paused') && onFlowers(mouse[0], mouse[1], 6) ? 'pointer' : ''; };
+// The cursor is decided here, from a fresh hit-test at the mouse's last position, and set on
+// the root (everything inherits it). Re-run every frame, so it stays right when the flowers or
+// the bobbing hint move under a mouse that isn't moving.
+const updateCursor = () => {
+  let want = false;
+  if (mouse) {
+    const el = document.elementFromPoint(mouse[0], mouse[1]);
+    if (el === c) want = !document.body.classList.contains('paused') && onFlowers(mouse[0], mouse[1], 6);
+    else if (el && document.getElementById('hint').contains(el)) want = true;   // only its trimmed backing is hittable
+  }
+  document.documentElement.style.cursor = want ? 'pointer' : '';
+};
 addEventListener('mousemove', e => { mouse = [e.clientX, e.clientY]; updateCursor(); });
 // ---- timeline ----
 // bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
