@@ -723,23 +723,33 @@ let shown = null;
 let target = 0, M = 0, Mv = 0, lagged = false, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
   if (T < BLOOM_END) return;                          // still blooming: ignore
-  // interrupting a morph that's still moving turns it around with heavy momentum; a tap
-  // after it has fully finished starts straight away
-  lagged = !(M === target && Mv === 0);
+  const finished = M === target && Mv === 0 && !lagged;
   target = 1 - target;
-  if (!lagged) Mv = Math.sign(target - M) * M_SPEED;   // from a finished state: launch at full speed, no wind-up
+  if (finished) {                                     // clean morph: everything together, moving from the first frame
+    lagged = false;
+    Mv = Math.sign(target - M) * M_SPEED;
+    for (const u of units) u.mm = M;
+  } else lagged = true;                               // interrupted mid-morph: momentum + parallax turnaround
   hinted = true;
   document.body.classList.remove('paused');
 }
 function stepMorph(dt) {
+  // seconds until M arrives; the parallax and the drift are squeezed to fit inside it,
+  // so the effect never outlasts the morph or makes a short trip feel sluggish
+  const rem = Math.max(.05, Math.abs(target - M) / M_SPEED);
   const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
-  Mv += (want - Mv) * Math.min(1, dt * (lagged ? 1.4 : 5));   // interrupted: heavy, drifts on a beat before turning back
+  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(8, Math.max(1.4, 1.2 / rem)) : 5));
   M = clamp01(M + Mv * dt);
   if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
-  // parallax: every flower trails M with its own lag (deeper ones lag more), so they
-  // don't all move, or turn around, at exactly the same moment
-  for (const u of units) u.mm += (M - u.mm) * Math.min(1, dt * u.follow);
-  if (M === target && Mv === 0) lagged = false;
+  if (!lagged) { for (const u of units) u.mm = M; return; }
+  // parallax: each flower trails M with its own lag (deeper ones lag more), catching up
+  // faster as the remaining time runs out so they all land together with M
+  let settled = M === target;
+  for (const u of units) {
+    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow, 3 / rem));
+    if (Math.abs(u.mm - M) > .001) settled = false;
+  }
+  if (settled) { lagged = false; for (const u of units) u.mm = M; }
 }
 if (!still) {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
