@@ -723,10 +723,11 @@ let shown = null;
 let target = 0, M = 0, Mv = 0, lagged = false, hinted = false, windScale = 1, lastT = 0;
 function toggle(T) {
   if (T < BLOOM_END) return;                          // still blooming: ignore
-  // from a finished state: the clean morph. Interrupting one already in motion turns
-  // it around with momentum + per-flower lag (the parallax feel) until it settles.
-  if (!(M === target && Mv === 0)) lagged = true;
+  // interrupting a morph that's still moving turns it around with heavy momentum; a tap
+  // after it has fully finished starts straight away
+  lagged = !(M === target && Mv === 0);
   target = 1 - target;
+  if (!lagged) Mv = Math.sign(target - M) * M_SPEED;   // from a finished state: launch at full speed, no wind-up
   hinted = true;
   document.body.classList.remove('paused');
 }
@@ -735,12 +736,10 @@ function stepMorph(dt) {
   Mv += (want - Mv) * Math.min(1, dt * (lagged ? 1.4 : 5));   // interrupted: heavy, drifts on a beat before turning back
   M = clamp01(M + Mv * dt);
   if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
-  if (!lagged) { for (const u of units) u.mm = M; return; }
-  // parallax: every flower trails M with its own lag (deeper ones lag more), so on a
-  // reversal they don't all turn at once. Once all of them have arrived, back to normal.
-  let settled = M === target;
-  for (const u of units) { u.mm += (M - u.mm) * Math.min(1, dt * u.follow); if (Math.abs(u.mm - M) > .001) settled = false; }
-  if (settled) { lagged = false; for (const u of units) u.mm = M; }
+  // parallax: every flower trails M with its own lag (deeper ones lag more), so they
+  // don't all move, or turn around, at exactly the same moment
+  for (const u of units) u.mm += (M - u.mm) * Math.min(1, dt * u.follow);
+  if (M === target && Mv === 0) lagged = false;
 }
 if (!still) {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
