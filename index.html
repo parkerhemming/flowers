@@ -961,6 +961,11 @@ if (!still) {
     for (const u of units) u.mm = 0;
     prevL = null; hist = null;                          // no smoothing carried over from the old frame
   });
+  // Home-screen app: iOS resumes it where it was left rather than reloading, so every
+  // time it comes back on screen, start over with a fresh bloom (same as pressing replay)
+  const replayIfApp = () => { if (document.body.classList.contains('app')) replay.click(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') replayIfApp(); });
+  addEventListener('pageshow', e => { if (e.persisted) replayIfApp(); });
   addEventListener('pointerdown', e => {
     const el = e.target instanceof Node ? e.target : null;
     if (el && (btn.contains(el) || info.contains(el) || replay.contains(el))) return;
