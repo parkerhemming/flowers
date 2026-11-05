@@ -620,6 +620,10 @@ function setup() {
   const cols = +q.get('cols') || Math.round(Math.max(90, Math.min(250, W / 5.6)));
   const cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
   c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); x.setTransform(1, 0, 0, 1, 0, 0);   // device pixels, no scaling
+  // WebKit (Safari, iOS and Mac) builds the canvas's display layer at the size it had when
+  // first drawn and doesn't rebuild it on resize, so it showed a low-res copy, stretched.
+  // Re-inserting the element after sizing forces a fresh layer at full resolution.
+  { const next = c.nextSibling, parent = c.parentNode; parent.removeChild(c); parent.insertBefore(c, next); }
   S.width = cols * SS; S.height = rows * SS; prevL = null; hist = null;
   // body padding: the widest moment (the spelled-out name) spans ~146 world units
   const pad = Math.max(16, W * .04);
