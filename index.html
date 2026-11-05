@@ -958,6 +958,8 @@ if (!still) {
   const replay = document.getElementById('replay');
   replay.addEventListener('click', () => {
     hinted = hinted && !document.body.classList.contains('paused');
+    // replay clears the hint quickly (tapping the flowers keeps the slower fade)
+    hint.style.transition = 'opacity .2s ease, transform .2s ease'; setTimeout(() => hint.style.transition = '', 250);
     document.body.classList.remove('paused');
     setInfo(false);
     deckOffset += noteCycle + 1;                        // messages already shown this run
