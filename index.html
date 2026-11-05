@@ -46,7 +46,9 @@
     transition:opacity .9s ease}
   body.bloomed #note{opacity:.7}
   body.bloomed.paused #note{opacity:.3}                 /* dims with the flowers while the tap hint is up */
-  #note .cursor{animation:blink 1.05s steps(1) infinite}
+  #note .cursor{display:inline-block;width:.62em;height:1.05em;margin-left:.12em;vertical-align:-.18em;background:currentColor;
+    animation:blink 1.05s steps(1) infinite}            /* a terminal-style block cursor */
+  @media (min-width:768px){#note{left:calc(20px + env(safe-area-inset-left));transform:none}}   /* desktop: bottom-left */
   #note.typing .cursor{animation:none}                  /* solid while typing, like a real caret */
   @keyframes blink{50%{opacity:0}}
   #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -2px;font-size:1.3em;line-height:0;vertical-align:-.04em}
@@ -72,7 +74,7 @@
 </style>
 <canvas id="c" aria-label="An ASCII-art bouquet of roses, dok rak and orchids for Aria"></canvas>
 <pre id="hint" role="status" aria-live="polite"></pre>
-<p id="note" class="mono" aria-label="for aria, from parker"><span id="typed"></span><span class="cursor" aria-hidden="true">|</span></p>
+<p id="note" class="mono" aria-label="for aria, from parker"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
@@ -729,7 +731,7 @@ const hint = document.getElementById('hint');
 // Types "for aria, from parker", and every so often backspaces it away and types one
 // of these instead, then goes back. Driven by the same clock, so replay restarts it.
 const NOTE = 'for aria, from parker';
-const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames', 'ily L,,|'];
+const NOTES = ['you egg (o)', 'enjoy thailand', 'put the dogs away', '<3', 'you are a beautiful soul', 'you beam, miss beames'];
 const GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
 // backspacing is tapped, not held: each press gets its own uneven gap, with the odd
 // longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
