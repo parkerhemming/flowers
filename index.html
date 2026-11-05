@@ -738,8 +738,8 @@ if (!still) {
   });
   (function loop() {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
-    const typeAt = BLOOM_END + .3;                    // starts typing as soon as the bloom is done
-    document.body.classList.toggle('bloomed', T > BLOOM_END);
+    const typeAt = BLOOM_END - .2;                    // starts typing just as the bloom finishes
+    document.body.classList.toggle('bloomed', T > typeAt - .3);
     const n = Math.max(0, Math.min(NOTE.length, Math.floor((T - typeAt) / .075)));   // ~13 chars/s
     if (n !== typedN) { typedN = n; typed.textContent = NOTE.slice(0, n); }
     noteEl.classList.toggle('typing', n > 0 && n < NOTE.length);
