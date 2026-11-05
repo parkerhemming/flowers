@@ -409,8 +409,11 @@ function stemCurve(o, hx, hy, e = 0) {
   const dx = TIE[0] - hx, dy = TIE[1] - hy, L = Math.hypot(dx, dy) || 1;
   // bow outward (away from the bunch's centre line) by 8-14% of the stem's length
   // bow outward and *upward*: low, wide stems arch up like a fountain instead of sagging
+  // The side is a smooth weight, not a hard switch: a head crossing the centre line
+  // fades its bow through straight to the other side instead of flipping in one frame.
   let nx = -dy / L, ny = dx / L;
-  if (nx * Math.sign(hx - TIE[0]) - ny * 1.5 < 0) { nx = -nx; ny = -ny; }
+  const side = Math.max(-1, Math.min(1, 3 * (nx * Math.max(-1, Math.min(1, (hx - TIE[0]) / 8)) - ny * 1.5)));
+  nx *= side; ny *= side;
   // the arc deepens as the flower travels, capped so long outer stems don't balloon
   const bow = Math.min(L * (.08 + .06 * Math.abs(o.bend) / 5 + .12 * e), 4 + 5 * e);
   return [[hx, hy], [hx + dx * .3 + nx * bow, hy + dy * .3 + ny * bow], [TIE[0] + o.j1 - dx * .08 + nx * bow * .45, TIE[1] - L * .22], [TIE[0] + o.j2, TIE[1]]];
@@ -552,7 +555,8 @@ function scene(M, T = 1e3, wind = 1) {
     // bow the run from the tie to the first flower outward, deeper as it stretches
     const [ax, ay] = pts[0], [bx, by] = pts[1], sl = Math.hypot(bx - ax, by - ay) || 1;
     let nx = -(by - ay) / sl, ny = (bx - ax) / sl;
-    if (nx * Math.sign(bx - TIE[0]) - ny * 1.5 < 0) { nx = -nx; ny = -ny; }
+    const side = Math.max(-1, Math.min(1, 3 * (nx * Math.max(-1, Math.min(1, (bx - TIE[0]) / 8)) - ny * 1.5)));
+    nx *= side; ny *= side;                             // smooth side choice, same as stemCurve
     const sb = Math.min(sl * (.1 + .12 * E), 4 + 5 * E);
     pts.splice(1, 0, [ax + (bx - ax) * .25 + nx * sb, ay + (by - ay) * .25 + ny * sb], [ax + (bx - ax) * .6 + nx * sb * .8, ay + (by - ay) * .6 + ny * sb * .8]);
     // sample the smooth chain into a polyline so it can be drawn growing out of the tie
