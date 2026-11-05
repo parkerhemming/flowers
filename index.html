@@ -979,6 +979,7 @@ if (!still) {
     dim += ((paused ? .42 : 1) - dim) * Math.min(1, dt * 3);   // the pause dims the flowers in-canvas
     stepMorph(dt);
     frame(M, calm ? 1e3 : T, calm ? 0 : smooth((T - 3.5) / 3) * windScale);
+    if (mouse) updateCursor();                         // flowers can move under a resting cursor
     requestAnimationFrame(loop);
   })();
 }
