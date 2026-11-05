@@ -23,7 +23,7 @@ Everything is in `index.html`, with no dependencies and no build step.
 ## Deploy
 
 ```bash
-scp index.html og.jpg apple-touch-icon.png root@74.207.243.33:/var/www/flowers/
+scp index.html apple-touch-icon.png root@74.207.243.33:/var/www/flowers/
 ```
 
 The nginx server block for `flowers.hemm.ing` is in `/etc/nginx/nginx.conf` on the server. Cloudflare proxies the domain and uses the `*.hemm.ing` origin certificate.

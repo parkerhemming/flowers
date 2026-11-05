@@ -7,9 +7,7 @@
 <meta name="theme-color" content="#0b0a0d">
 <meta property="og:title" content="For Aria">
 <meta property="og:description" content="A bouquet of Thai love flowers, grown from text characters.">
-<meta property="og:image" content="https://flowers.hemm.ing/og.jpg?v=2">
 <meta property="og:url" content="https://flowers.hemm.ing/">
-<meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -714,17 +712,19 @@ function frame(M, T = 1e3, wind = 1) {
 
 setup();
 addEventListener('resize', setup);
-// a hand cursor over the flowers (any drawn character within a cell of the pointer)
-addEventListener('mousemove', e => {
-  if (!G_ || !hist) return;
-  const { cols, rows, cw, ch } = G_, ci = Math.floor(e.clientX / cw), cj = Math.floor(e.clientY / ch);
-  let on = false;
-  for (let dj = -1; dj <= 1 && !on; dj++) for (let di = -1; di <= 1 && !on; di++) {
-    const i = ci + di, j = cj + dj;
-    if (i >= 0 && j >= 0 && i < cols && j < rows && hist[j * cols + i]) on = true;
-  }
-  c.style.cursor = on ? 'pointer' : '';
-});
+// is a screen point on the flowers? (any drawn character within `reach` css px of it;
+// fingers get more reach than a mouse)
+function onFlowers(px, py, reach) {
+  if (!G_ || !hist) return false;
+  const { cols, rows, cw, ch } = G_, ri = Math.ceil(reach / cw), rj = Math.ceil(reach / ch);
+  const ci = Math.floor(px / cw), cj = Math.floor(py / ch);
+  for (let j = Math.max(0, cj - rj); j <= Math.min(rows - 1, cj + rj); j++)
+    for (let i = Math.max(0, ci - ri); i <= Math.min(cols - 1, ci + ri); i++)
+      if (hist[j * cols + i]) return true;
+  return false;
+}
+// a hand cursor over the flowers
+addEventListener('mousemove', e => { c.style.cursor = onFlowers(e.clientX, e.clientY, 6) ? 'pointer' : ''; });
 // ---- timeline ----
 // bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
 // slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
@@ -854,7 +854,8 @@ if (!still) {
     const el = e.target instanceof Node ? e.target : null;
     if (el && (btn.contains(el) || info.contains(el) || replay.contains(el))) return;
     if (info.classList.contains('open')) { setInfo(false); return; }   // a tap outside just closes the panel
-    toggle(now());
+    // only a tap on the flowers (or on the hint) toggles; empty space does nothing
+    if ((el && hint.contains(el)) || onFlowers(e.clientX, e.clientY, e.pointerType === 'mouse' ? 6 : 18)) toggle(now());
   });
   addEventListener('keydown', e => {
     if (e.key === 'Escape') return setInfo(false);
