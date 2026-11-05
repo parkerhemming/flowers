@@ -22,9 +22,10 @@
   canvas{display:block;position:fixed;inset:0;transition:filter .9s ease}
   body.paused canvas{filter:brightness(.42) saturate(.85)}
   #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
+    padding:0;background:rgba(11,10,13,.88);         /* backing hugs the characters exactly */
 
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
-    text-shadow:0 0 3px #0b0a0d,0 0 6px #0b0a0d,0 0 14px rgba(255,120,150,.45);opacity:0;pointer-events:none;
+    text-shadow:0 0 12px rgba(255,120,150,.45);opacity:0;pointer-events:none;
     transition:opacity .8s ease,transform .8s ease;white-space:pre}
   body.paused #hint{opacity:1;transform:translate(-50%,-50%);animation:float 2.6s ease-in-out .8s infinite}
   @keyframes float{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,calc(-50% - 5px))}}
@@ -737,8 +738,8 @@ if (!still) {
   });
   (function loop() {
     const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
-    const typeAt = BLOOM_END - 2.1;                   // starts as the last flowers open, done just before the bloom ends
-    document.body.classList.toggle('bloomed', T > typeAt - .4);
+    const typeAt = BLOOM_END + .3;                    // starts typing as soon as the bloom is done
+    document.body.classList.toggle('bloomed', T > BLOOM_END);
     const n = Math.max(0, Math.min(NOTE.length, Math.floor((T - typeAt) / .075)));   // ~13 chars/s
     if (n !== typedN) { typedN = n; typed.textContent = NOTE.slice(0, n); }
     noteEl.classList.toggle('typing', n > 0 && n < NOTE.length);
