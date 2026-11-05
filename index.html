@@ -31,7 +31,7 @@
      only fades + slides the outer box and nothing snaps */
   #hint .bob{display:inline-block;position:relative;animation:bob 2.6s ease-in-out infinite}
   #hint .bob::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88);border-radius:3px}   /* measured ink edges of the - and | glyphs */
-  body.paused #hint{opacity:1;transform:translate(-50%,-50%)}
+  body.paused #hint{opacity:1;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer}   /* clickable while shown */
   @keyframes bob{50%{transform:translateY(-5px)}}
   /* the (i) button and its ASCII-framed info panel */
   .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
@@ -714,6 +714,17 @@ function frame(M, T = 1e3, wind = 1) {
 
 setup();
 addEventListener('resize', setup);
+// a hand cursor over the flowers (any drawn character within a cell of the pointer)
+addEventListener('mousemove', e => {
+  if (!G_ || !hist) return;
+  const { cols, rows, cw, ch } = G_, ci = Math.floor(e.clientX / cw), cj = Math.floor(e.clientY / ch);
+  let on = false;
+  for (let dj = -1; dj <= 1 && !on; dj++) for (let di = -1; di <= 1 && !on; di++) {
+    const i = ci + di, j = cj + dj;
+    if (i >= 0 && j >= 0 && i < cols && j < rows && hist[j * cols + i]) on = true;
+  }
+  c.style.cursor = on ? 'pointer' : '';
+});
 // ---- timeline ----
 // bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
 // slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
