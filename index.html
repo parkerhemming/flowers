@@ -59,13 +59,11 @@
   /* Info panel: centred, framed with the same ASCII box as the tap hint (same font, size,
      colour, backing trimmed to the lines). The frame text and the panel size are set from
      JS so the panel is a whole number of characters and the frame always fits exactly. */
-  #info{position:fixed;top:calc(58px + env(safe-area-inset-top));left:50%;box-sizing:border-box;
+  #info{position:fixed;top:calc(58px + env(safe-area-inset-top));left:0;box-sizing:border-box;   /* left is set from the icons in JS */
     font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;padding:1.5em 3ch;
     color:#e7dde1;user-select:text;-webkit-user-select:text;
-    opacity:0;transform:translate(-50%,-6px);visibility:hidden;transition:opacity .35s,transform .35s,visibility 0s .35s}
-  #info.open{opacity:1;transform:translate(-50%,0);visibility:visible;transition:opacity .35s,transform .35s}
-  #info.pinned{transform:translateY(-6px)}            /* phones: positioned from the icons, not centred */
-  #info.pinned.open{transform:none}
+    opacity:0;transform:translateY(-6px);visibility:hidden;transition:opacity .35s,transform .35s,visibility 0s .35s}
+  #info.open{opacity:1;transform:none;visibility:visible;transition:opacity .35s,transform .35s}
   #info::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.93);border-radius:3px}
   #info .frame{position:absolute;inset:0;margin:0;font:inherit;color:#ffd6dc;text-shadow:0 0 12px rgba(255,120,150,.45);pointer-events:none;white-space:pre}
   #info .scroll{position:relative;font-size:12.5px;line-height:1.55}   /* never scrolls: JS shrinks the text to fit */
@@ -869,7 +867,7 @@ if (!still) {
     // where the "|" ink sits inside its character cell (measured, not assumed)
     k.font = getComputedStyle(infoFrame).font;
     const m = k.measureText('|'), inL = -m.actualBoundingBoxLeft, inR = m.actualBoundingBoxRight;
-    info.classList.add('pinned'); info.style.height = '';
+    info.style.height = '';
     if (innerWidth < 768) {
       // phones: span from [↺] to [i]. Whole characters can't hit both edges exactly, so the
       // frame's letter spacing stretches a fraction of a pixel to land on both
