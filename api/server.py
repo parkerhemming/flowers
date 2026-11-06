@@ -8,6 +8,9 @@ Standard library only. Keys come from the environment (/etc/flowers.env), never 
 
   python3 server.py                 run the API on 127.0.0.1:8790
   python3 server.py codes 5         print 5 new redeem codes
+  python3 server.py codes           list every code and who used it
+  python3 server.py list            the latest bouquets (add a number for more, e.g. list 200)
+  python3 server.py delete ID ...   delete bouquets (and their icons) for good
   python3 server.py selftest        quick checks, no network
 """
 import base64, hashlib, hmac, html, json, threading, os, re, secrets, sqlite3, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
@@ -328,6 +331,30 @@ def make_codes(n):
     return out
 
 
+def show_codes():
+    for code, used_by, created, used in db().execute('select code, used_by, created, used from codes order by created'):
+        made = time.strftime('%Y-%m-%d', time.localtime(created))
+        print(f"FLWR-{code[4:]}  made {made}  " + (f"used {time.strftime('%Y-%m-%d', time.localtime(used))} -> hemm.ing/flowers/{used_by}" if used_by else 'unused'))
+
+
+def show_bouquets(n):
+    rows = db().execute('select id, status, via, created, email, data from bouquets order by created desc limit ?', (n,)).fetchall()
+    for i, status, via, created, email, data in rows:
+        d = json.loads(data)
+        print(f"{i}  {time.strftime('%Y-%m-%d %H:%M', time.localtime(created))}  {status:<7}  {(via or ''):<17}  "
+              f"for {d['name']:<9}  from {(d.get('from') or '-'):<10}  {d['f']:<28}  {email or ''}")
+    print(f'({len(rows)} shown, newest first)')
+
+
+def delete(ids):
+    c = db()
+    for i in ids:
+        gone = c.execute('delete from bouquets where id=?', (i,)).rowcount
+        if os.path.exists(icon_path(i)):
+            os.remove(icon_path(i))
+        print(f'{i}: ' + ('deleted' if gone else 'no such bouquet'))
+
+
 def selftest():
     d = clean({'name': ' Zoë <b>!! ', 'from': 'Al <x>', 'f': 'rose*.nope.calla*.rose.babys', 'msgs': ['hi', '', 'x' * 99, 3]})
     assert d == {'name': 'Zoe b', 'from': 'Al x', 'f': 'rose*.calla.babys', 'msgs': ['hi', 'x' * 40]}, d
@@ -354,6 +381,10 @@ if __name__ == '__main__':
     if sys.argv[1:2] == ['selftest']:
         selftest()
     elif sys.argv[1:2] == ['codes']:
-        print('\n'.join(make_codes(int(sys.argv[2]) if len(sys.argv) > 2 else 1)))
+        print('\n'.join(make_codes(int(sys.argv[2])))) if len(sys.argv) > 2 else show_codes()
+    elif sys.argv[1:2] == ['list']:
+        show_bouquets(int(sys.argv[2]) if len(sys.argv) > 2 else 30)
+    elif sys.argv[1:2] == ['delete']:
+        delete(sys.argv[2:])
     else:
         ThreadingHTTPServer(('127.0.0.1', 8790), API).serve_forever()
