@@ -85,7 +85,6 @@
   .receipt .rule{border-top:1px dashed var(--line);margin:8px 0}
   .receipt .total{font-weight:600}
   .receipt .total .v{color:var(--pink)}
-  .receipt .thanks{text-align:center;color:var(--dim);font-size:11px;margin-top:8px}
   #pay .or{display:flex;align-items:center;gap:1ch;color:#5a5258;font-size:12px;margin:16px 0 12px}
   #pay .or::before,#pay .or::after{content:'';flex:1;border-top:1px dashed var(--line)}
   #pay .big{width:100%;margin-top:14px}
@@ -286,7 +285,7 @@ function receipt() {
   $('receipt').innerHTML = `<div class="head">* flowers *</div><div class="sub">hemm.ing/flowers · ${day}</div><div class="rule"></div>` +
     ln('for', name) + (from ? ln('from', from) : '') + '<div class="rule"></div>' + flowers +
     (state.notes.length ? ln('notes', state.notes.length) : '') + '<div class="rule"></div>' +
-    ln('1 bouquet', price(), 'total') + `<div class="thanks">${gift ? 'a gift, on the house <3' : 'thank you <3'}</div>`;
+    ln('1 bouquet', price(), 'total');
 }
 const order = () => ({ name: $('to').value.trim(), from: $('from').value.trim(), f: state.picks.map(k => k + (k === state.fav ? '*' : '')).join('.'), msgs: state.notes });
 const api = (path, body) => fetch('api/' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
