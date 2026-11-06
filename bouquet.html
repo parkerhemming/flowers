@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Flowers for you</title>
+<meta name="description" content="A bouquet of flowers, grown from text characters.">
+<meta name="theme-color" content="#0b0a0d">
+<meta property="og:title" content="Flowers for you">
+<meta property="og:description" content="A bouquet of flowers, grown from text characters.">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flowers">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext x='1' y='13' font-family='monospace' font-size='15' fill='%23e0314b'%3E@%3C/text%3E%3C/svg%3E">
+<style>
+  html,body{margin:0;height:100%;background:#0b0a0d;overflow:hidden;overscroll-behavior:none}
+  body{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  canvas{display:block;position:fixed;inset:0}      /* no CSS filter: WebKit renders filtered canvases soft */
+  #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,calc(-50% + 8px));margin:0;
+
+    font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffd6dc;
+    text-shadow:0 0 12px rgba(255,120,150,.45);opacity:0;pointer-events:none;
+    transition:opacity .8s ease,transform .8s ease;white-space:pre}
+  /* the backing lives on a pseudo-element inset to the middle of the frame glyphs, so
+     it ends exactly at the drawn lines instead of filling the edge character cells */
+  /* the gentle float lives on an inner layer that never stops, so showing/hiding the hint
+     only fades + slides the outer box and nothing snaps */
+  #hint .bob{display:inline-block;position:relative;animation:bob 2.6s ease-in-out infinite}
+  #hint .bob::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.88);border-radius:3px}   /* measured ink edges of the - and | glyphs */
+  body.paused #hint{opacity:1;transform:translate(-50%,-50%)}
+  /* only the backing (trimmed exactly to the frame lines) is clickable while shown, so the
+     hand cursor stops at the border instead of a few px outside it */
+  body.paused #hint .bob::before{pointer-events:auto}   /* cursor is set from JS (see updateCursor) */
+  @keyframes bob{50%{transform:translateY(-5px)}}
+  /* the (i) button and its ASCII-framed info panel */
+  .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
+  .corner{position:fixed;top:calc(10px + env(safe-area-inset-top));
+    min-width:44px;height:44px;padding:0 6px;background:none;border:0;color:#ffd6dc;opacity:.55;
+    font-size:15px;cursor:pointer;transition:opacity .3s}
+  #info-btn{right:calc(10px + env(safe-area-inset-right))}
+  #replay{left:calc(10px + env(safe-area-inset-left))}
+  /* the note: top centre, on the same line as the two corner buttons; fades in once the bloom is done */
+  #note{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);margin:0;
+    height:44px;line-height:44px;white-space:nowrap;font-size:13px;color:#ffd6dc;opacity:0;pointer-events:none;
+    transition:opacity .9s ease}
+  body.bloomed #note{opacity:.7}
+  body.bloomed.paused #note{opacity:.3}                 /* dims with the flowers while the tap hint is up */
+  #note .cursor{display:inline-block;width:.62em;height:1.05em;margin-left:.12em;vertical-align:-.18em;background:currentColor;
+    animation:blink 1.05s steps(1) infinite}            /* a terminal-style block cursor */
+  @media (min-width:768px){#note{left:calc(31px + env(safe-area-inset-left));transform:none}}   /* desktop: bottom-left; the left gap matches the letters' visual distance from the bottom (the 44px line puts the baseline ~31px up) */
+  #note.typing .cursor{animation:none}                  /* solid while typing, like a real caret */
+  @keyframes blink{50%{opacity:0}}
+  /* Home-screen app: iOS lays a frosted band over the top ~100pt under the status bar
+     (it ignores the solid status-bar setting), so the corner buttons sit just below it */
+  body.app .corner{top:calc(env(safe-area-inset-top) + 32px)}
+  body.app #info{top:calc(env(safe-area-inset-top) + 80px)}
+  #replay .spin{display:inline-block;transform:rotate(-90deg);margin:0 1px 0 -3px;font-size:1.3em;line-height:0;vertical-align:-.04em}
+  .corner:hover,.corner:focus-visible,#info-btn[aria-expanded=true]{opacity:1}
+  .corner:focus-visible{outline:1px dashed #ffd6dc;outline-offset:2px}
+  /* Info panel: centred, framed with the same ASCII box as the tap hint (same font, size,
+     colour, backing trimmed to the lines). The frame text and the panel size are set from
+     JS so the panel is a whole number of characters and the frame always fits exactly. */
+  #info{position:fixed;top:calc(58px + env(safe-area-inset-top));left:0;box-sizing:border-box;   /* left is set from the icons in JS */
+    font:13px/1.25 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;padding:1.5em 3ch;
+    color:#e7dde1;user-select:text;-webkit-user-select:text;
+    opacity:0;transform:translateY(-6px);visibility:hidden;transition:opacity .35s,transform .35s,visibility 0s .35s}
+  #info.open{opacity:1;transform:none;visibility:visible;transition:opacity .35s,transform .35s}
+  #info::before{content:"";position:absolute;z-index:-1;inset:.62em .4ch .55em .46ch;background:rgba(11,10,13,.93);border-radius:3px}
+  #info .frame{position:absolute;inset:0;margin:0;font:inherit;color:#ffd6dc;text-shadow:0 0 12px rgba(255,120,150,.45);pointer-events:none;white-space:pre}
+  #info .scroll{position:relative;font-size:12.5px;line-height:1.55}   /* never scrolls: JS shrinks the text to fit */
+  #info h2{margin:0 0 .8em;font-size:1.04em;font-weight:600;color:#ffd6dc;letter-spacing:.02em}
+  #info dl{margin:0}
+  #info dt{margin-top:.8em;font-weight:600}
+  #info dd{margin:2px 0 0;color:#cbbfc4}
+  body.embed #note,body.embed .corner,body.embed #hint,body.embed #info{display:none}   /* live preview inside the create page */
+  #info p{margin:1.1em 0 0;color:#9d9096;font-size:.92em}
+  #keep{margin-top:.95em;padding-top:.8em;border-top:1px dashed rgba(255,214,220,.25);color:#cbbfc4}
+  #keep .share{width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+  @media (prefers-reduced-motion:reduce){#hint .bob{animation:none}#info{transition:none}#note .cursor{animation:none}}
+</style>
+<canvas id="c" aria-label="An ASCII-art bouquet of flowers"></canvas>
+<pre id="hint" role="status" aria-live="polite"></pre>
+<p id="note" class="mono"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
+<button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
+<button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
+<section id="info" class="mono" role="dialog" aria-label="About these flowers">
+  <pre class="frame" aria-hidden="true"></pre>
+  <div class="scroll">
+  <h2></h2>
+  <dl></dl>
+  <p>Every petal here is a text character. Tap the flowers for a surprise.</p>
+  <div id="keep" hidden>
+    <span style="color:#ffd6dc">[+] keep these flowers</span><br>
+    Tap <svg class="share" viewBox="0 0 16 16" aria-label="Share"><path d="M8 1.5v8.5M5 4.5l3-3 3 3M5.5 7H4v7.5h8V7h-1.5"/></svg> Share, then "Add to Home Screen".
+  </div>
+  </div>
+</section>
+<script src="flowers.js?v=1"></script>
+<script>
+// Flowers are drawn as shaded vector shapes to a hidden canvas each frame, then
+// every cell of a dense monospace grid is sampled into a glyph + colour.
+// Debug: ?bt=<seconds> freezes the bloom, ?m=0..1 freezes the morph, ?cols=N sets density.
+const q = new URLSearchParams(location.search);
+if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) document.body.classList.add('app');
+const c = document.getElementById('c'), x = c.getContext('2d');
+const S = document.createElement('canvas'); s = S.getContext('2d', { willReadFrequently: true });
+
+function fern(x0, y0, cx1, cy1, x1, y1, dark = .3) {
+  const e = ease(P * 1.8); if (e <= 0) return;
+  const pt = t => [(1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx1 + t * t * x1, (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy1 + t * t * y1];
+  s.beginPath(); for (let t = 0; t <= e; t += .02) s.lineTo(...pt(t));
+  s.strokeStyle = shade('#2f6b35', -dark); s.lineWidth = .5; s.stroke();
+  for (let t = .42; t < e; t += .028) {
+    const [px, py] = pt(t), [qx, qy] = pt(t + .01), a = Math.atan2(qy - py, qx - px), L = Math.sin((t - .38) / .62 * Math.PI) * 5 + 1;
+    for (const sd of [-1, 1]) {
+      s.save(); s.translate(px, py); s.rotate(a + sd * 1.05);
+      s.beginPath(); s.ellipse(L * .5, 0, L * .5, L * .16, 0, 0, TAU);
+      s.fillStyle = shade(sd > 0 ? '#2f7a3b' : '#4f9a45', -dark + (t - .42) * .5); s.fill(); s.restore();
+    }
+  }
+}
+// ---------- scene ----------
+// Every flower head is a physical "unit" with its own stem back to the tie point.
+// For the name morph each unit travels to a spot on a hand-drawn stroke of the
+// name; stems bend to follow, sprays and clusters stay connected, leaves ride
+// along on their host stems. Nothing is redrawn as a font.
+const TIE = [3, -34];
+const smooth = t => { t = clamp01(t); return t * t * t * (t * (6 * t - 15) + 10); };   // smootherstep
+let seed2 = 99;
+const rnd2 = () => (seed2 = (seed2 * 16807) % 2147483647) / 2147483647;
+const GREENS = ['#245228', '#2a5e30', '#3f8f4a', '#356f37', '#4f9a45', '#5a8a3a', '#62a84f'];
+const stemProps = o => Object.assign(o, {
+  bend: (rnd2() - .5) * 10, j1: (rnd2() - .5) * 4, j2: (rnd2() - .5) * 2.4,
+  ex: TIE[0] + (rnd2() - .5) * 13, ey: -15 + rnd2() * 4, col: GREENS[rnd2() * 5 | 0], w: .45 + rnd2() * .3,
+});
+const units = [], clusters = [], sprays = [], leaves = [];
+const addUnit = u => { stemProps(u); u.id = units.length; units.push(u); return u; };
+
+// ---- the bouquet, composed from ?f= (e.g. rose.dokrak.orchid.babys*; * marks their favorite) ----
+// Focal flowers fill a dome on a sunflower-seed spiral; filler goes into the gaps; small
+// flowers are added until there are enough heads to spell a name clearly.
+const PICKS = [];
+for (const k of (q.get('f') || 'rose.dokrak.orchid.babys*').split('.')) {
+  const key = k.replace('*', '');
+  if (BY_KEY[key] && !PICKS.some(p => p.key === key) && PICKS.length < 5) PICKS.push({ key, fav: k.endsWith('*') && !PICKS.some(p => p.fav), d: BY_KEY[key] });
+}
+if (!PICKS.length) PICKS.push({ key: 'rose', fav: false, d: BY_KEY.rose });
+const FOCAL = PICKS.filter(p => p.d.kind === 'focal'), FILL = PICKS.filter(p => p.d.kind === 'filler');
+const CX = 3, CY = -88;                                   // dome centre; the tie is below it
+const outward = (x, y) => Math.atan2(x - TIE[0], TIE[1] - y);
+const heads = [];                                         // [x, y, r] of everything placed, for spacing
+function single(p, hx, hy, r, z) {
+  const u = addUnit({ type: 'head', key: p.key, hx, hy, r, z, v: heads.length, spike: !!p.d.spike,
+    rot: p.d.spike ? 0 : ['tulip', 'calla', 'iris', 'lily'].includes(p.key) ? outward(hx, hy) * .5 : rnd2() * TAU,
+    tilt: (hx - CX) / 50, sq: .75 + rnd2() * .2, open: .7 + rnd2() * .3 });
+  heads.push([hx, hy, r]); return u;
+}
+function spray(hx, hy, z) {                               // an arching orchid spray ending near (hx, hy)
+  const si = sprays.length, n = 6, r0 = BY_KEY.orchid.size, p0 = [TIE[0], TIE[1]];
+  const p2 = [hx + (hx - CX) * .25, hy - 8], p1 = [(p0[0] + p2[0]) / 2 + (hx - CX) * .5, (p0[1] + p2[1]) / 2 - 14];
+  sprays.push({ z });
+  for (let i = 0; i < n; i++) {
+    const t = .35 + .65 * i / (n - 1), side = i % 2 ? 1 : -1, w = 1 - t;
+    const bx = w * w * p0[0] + 2 * w * t * p1[0] + t * t * p2[0], by = w * w * p0[1] + 2 * w * t * p1[1] + t * t * p2[1];
+    addUnit({ type: i >= n - 2 ? 'obud' : 'orchid', hx: bx + side * 2.2, hy: by + 1, r: r0 * (1 - .14 * i), rot: side * .25 + rnd2() * .3 - .15, side, z: z + i * .01, sp: si, t });
+    heads.push([bx, by, r0]);
+  }
+}
+function cluster(p, cx, cy, z) {                          // dok rak umbel or a cloud of baby's breath
+  const ci = clusters.push(stemProps({ R: p.d.cluster === 'bb' ? 4 : p.d.size, z, kind: p.d.cluster })) - 1, R = p.d.size;
+  if (p.d.cluster === 'dok') {
+    const offs = [[0, 0], ...[0, 1, 2, 3, 4, 5].map(k => [Math.cos(k * 1.047 + rnd2() * .4), Math.sin(k * 1.047 + rnd2() * .4) * .85]), [-.6, -1.5], [.7, -1.45]];
+    offs.forEach(([ox, oy], k) => addUnit({ type: k < 7 ? 'dok' : 'dokbud', hx: cx + ox * R * .78, hy: cy + oy * R * .78, r: k < 7 ? R * .5 : R * .32, rot: rnd2() * TAU, z: z + k * .01, cl: ci }));
+  } else for (let k = 0; k < 8; k++) {
+    const a = rnd2() * TAU, d = Math.sqrt(rnd2()) * R;
+    addUnit({ type: 'bb', hx: cx + Math.cos(a) * d, hy: cy + Math.sin(a) * d * .8, r: 1.4 + rnd2() * .6, rot: rnd2() * TAU, z: z + k * .01, cl: ci });
+  }
+  heads.push([cx, cy, R]);
+}
+// somewhere in the dome not already covered (best of a few random tries)
+function gap(rx, ry) {
+  let best = null, bestD = -1;
+  for (let k = 0; k < 24; k++) {
+    const a = rnd2() * TAU, d = Math.sqrt(rnd2()), x = CX + Math.cos(a) * d * rx, y = CY + Math.sin(a) * d * ry;
+    const free = Math.min(99, ...heads.map(([hx, hy, r]) => Math.hypot(x - hx, y - hy) - r * .8));
+    if (free > bestD) { bestD = free; best = [x, y]; }
+  }
+  return best;
+}
+const zOf = y => 1 + (y - (CY - 34)) / 9;                 // lower in the dome = further forward
+{
+  // focal: a sunflower-seed spiral, types taking turns so they mix
+  const nF = FOCAL.length ? (FILL.length ? 11 : 15) : 0, small = FILL.length ? 1 : .85;
+  for (let i = 0; i < nF; i++) {
+    const p = FOCAL[i % FOCAL.length], t = (i + .5) / nF, rr = Math.sqrt(t), a = i * 2.39996;
+    const x = CX + Math.cos(a) * rr * 40, y = CY + Math.sin(a) * rr * 28;
+    if (p.key === 'orchid') { if (sprays.length < 3) spray(x, y, zOf(y)); continue; }
+    single(p, x, y, p.d.size * small * (.85 + .25 * rnd2()) * (1.12 - .25 * rr), zOf(y));
+  }
+  // filler into the gaps, a little wider than the focal dome
+  const nFill = FILL.length ? Math.round(6 / FILL.length) + 1 : 0;
+  for (const p of FILL) for (let i = 0; i < nFill; i++) {
+    const [x, y] = gap(52, 38);
+    if (p.d.cluster) cluster(p, x, y, zOf(y) - 1.5); else single(p, x, y, p.d.size * (.85 + .3 * rnd2()), zOf(y) - 1.5);
+  }
+  // enough heads to spell a name: top up with smaller ones of whatever was picked
+  for (let i = 0; units.length < 34 && i < 40; i++) {
+    const p = PICKS[i % PICKS.length], [x, y] = gap(54, 40);
+    if (p.key === 'orchid') { if (sprays.length < 5) spray(x, y, zOf(y) - 2); continue; }
+    if (p.d.cluster) cluster(p, x, y, zOf(y) - 2); else single(p, x, y, p.d.size * (p.d.kind === 'focal' ? .55 : .85) * (.85 + .3 * rnd2()), zOf(y) - 2);
+  }
+}
+
+// leaves hang off the focal stems, so they travel with them
+const HOSTS = units.filter(u => u.type === 'head' && !u.spike);
+if (HOSTS.length) for (let i = 0; i < 10; i++)
+  leaves.push({ host: HOSTS[rnd2() * HOSTS.length | 0], t: .18 + rnd2() * .35, a: (rnd2() - .5) * 2.2,
+    len: 12 + rnd2() * 12, w: 3 + rnd2() * 2, z: rnd2() < .75 ? 2.5 + rnd2() * 3 : 7.5 + rnd2() });
+
+// ---- the name, as loose single-line strokes ----
+// A tiny hand-made font: cap height 10, x-height 6, baseline 0, y down. A one-point
+// stroke is a dot (i, j) and gets exactly one flower: the biggest head.
+const arc = (cx, cy, rx, ry, a0, a1) => { const out = [], n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 18));
+  for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; out.push([cx + rx * Math.cos(a), cy - ry * Math.sin(a)]); } return out; };
+const FONT = {
+  A: [6, [[0, 0], [3, -10], [6, 0]], [[1.2, -4], [4.8, -4]]],
+  B: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.5, 2.4, 2.5, 90, -90), [0, -5]], [[0, -5], [3.2, -5], ...arc(3.2, -2.5, 2.7, 2.5, 90, -90), [0, 0]]],
+  C: [7, arc(4.6, -5, 4.6, 5, 50, 310)],
+  D: [6.5, [[0, 0], [0, -10], [2.5, -10], ...arc(2.5, -5, 4, 5, 90, -90), [0, 0]]],
+  E: [5, [[5, -10], [0, -10], [0, 0], [5, 0]], [[0, -5], [4, -5]]],
+  F: [5, [[5, -10], [0, -10], [0, 0]], [[0, -5], [4, -5]]],
+  G: [8, [...arc(4, -5, 4, 5, 50, 360), [5, -5]]],
+  H: [6, [[0, 0], [0, -10]], [[6, 0], [6, -10]], [[0, -5], [6, -5]]],
+  I: [0, [[0, 0], [0, -10]]],
+  J: [4, [[4, -10], [4, -3], ...arc(2, -3, 2, 3, 0, -180)]],
+  K: [6, [[0, 0], [0, -10]], [[5.5, -10], [0, -4]], [[1.8, -6], [5.8, 0]]],
+  L: [5, [[0, -10], [0, 0], [5, 0]]],
+  M: [8, [[0, 0], [0, -10], [4, -3], [8, -10], [8, 0]]],
+  N: [6, [[0, 0], [0, -10], [6, 0], [6, -10]]],
+  O: [9, arc(4.5, -5, 4.5, 5, 0, 360)],
+  P: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.25, 2.75, 2.75, 90, -90), [0, -4.5]]],
+  Q: [9, arc(4.5, -5, 4.5, 5, 0, 360), [[5.5, -2.5], [9, .5]]],
+  R: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.25, 2.75, 2.75, 90, -90), [0, -4.5]], [[3, -4.5], [6, 0]]],
+  S: [6, [...arc(3, -7.5, 3, 2.5, 30, 270), ...arc(3, -2.5, 3, 2.5, 90, -150)]],
+  T: [7, [[0, -10], [7, -10]], [[3.5, -10], [3.5, 0]]],
+  U: [6, [[0, -10], [0, -3.5], ...arc(3, -3.5, 3, 3.5, 180, 360), [6, -10]]],
+  V: [6, [[0, -10], [3, 0], [6, -10]]],
+  W: [9, [[0, -10], [2, 0], [4.5, -7], [7, 0], [9, -10]]],
+  X: [6, [[0, -10], [6, 0]], [[6, -10], [0, 0]]],
+  Y: [6, [[0, -10], [3, -5], [6, -10]], [[3, -5], [3, 0]]],
+  Z: [6, [[0, -10], [6, -10], [0, 0], [6, 0]]],
+  a: [7, arc(2.8, -3, 2.8, 3, 40, 322), [[5.6, -6], [5.7, -1.4], [6.2, -.1], [7, -.4]]],
+  b: [5.6, [[0, -10], [0, 0]], arc(2.8, -3, 2.8, 3, 160, -160)],
+  c: [5.5, arc(3, -3, 3, 3, 45, 315)],
+  d: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -10], [5.6, 0]]],
+  e: [5.8, [[.2, -3], [5.8, -3], ...arc(2.9, -3, 2.9, 3, 0, 315)]],
+  f: [4.5, [...arc(4.5, -8, 2, 2, 30, 180), [2.5, 0]], [[.8, -6], [4.4, -6]]],
+  g: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -6], [5.6, 1.5], ...arc(2.8, 1.5, 2.8, 2, 0, -160)]],
+  h: [5.2, [[0, -10], [0, 0]], [[0, -3.5], ...arc(2.6, -3.5, 2.6, 2.5, 180, 0), [5.2, 0]]],
+  i: [0, [[0, -6], [0, 0]], [[0, -8.6]]],
+  j: [1.5, [[1.5, -6], [1.5, 1.5], ...arc(0, 1.5, 1.5, 2, 0, -150)], [[1.5, -8.6]]],
+  k: [4.8, [[0, -10], [0, 0]], [[4.5, -6], [0, -2.5]], [[1.6, -3.6], [4.8, 0]]],
+  l: [1.6, [[0, -10], [0, -1], [.8, 0], [1.6, -.3]]],
+  m: [8, [[0, -6], [0, 0]], [[0, -3.8], ...arc(2, -3.8, 2, 2.2, 180, 0), [4, 0]], [[4, -3.8], ...arc(6, -3.8, 2, 2.2, 180, 0), [8, 0]]],
+  n: [5.2, [[0, -6], [0, 0]], [[0, -3.5], ...arc(2.6, -3.5, 2.6, 2.5, 180, 0), [5.2, 0]]],
+  o: [5.8, arc(2.9, -3, 2.9, 3, 0, 360)],
+  p: [5.6, [[0, -6], [0, 3.5]], arc(2.8, -3, 2.8, 3, 160, -160)],
+  q: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -6], [5.6, 3.5]]],
+  r: [2.7, [[0, -6], [0, 0]], [[0, -4], [.8, -5.6], [1.9, -6.3], [2.7, -5.8]]],
+  s: [4.4, [...arc(2.2, -4.5, 2.2, 1.5, 30, 270), ...arc(2.2, -1.5, 2.2, 1.5, 90, -150)]],
+  t: [3.6, [[1.5, -8.5], [1.5, -1], ...arc(2.7, -1, 1.2, 1, 180, 270)], [[0, -6], [3.6, -6]]],
+  u: [5.2, [[0, -6], [0, -2.5], ...arc(2.6, -2.5, 2.6, 2.5, 180, 360), [5.2, -6]], [[5.2, -6], [5.2, 0]]],
+  v: [5.2, [[0, -6], [2.6, 0], [5.2, -6]]],
+  w: [7.6, [[0, -6], [1.8, 0], [3.8, -4.5], [5.8, 0], [7.6, -6]]],
+  x: [5, [[0, -6], [5, 0]], [[5, -6], [0, 0]]],
+  y: [5.2, [[0, -6], [2.6, 0]], [[5.2, -6], [1.5, 3.5]]],
+  z: [5, [[0, -6], [5, -6], [0, 0], [5, 0]]],
+};
+// ?name=: letters and spaces only (accents folded), at most 9, written "Aria"-style
+const NAME_MAX = 9;                                  // past 9 the letters blur together on a phone
+function cleanName(raw) {
+  const n = (raw || '').normalize('NFD').replace(/[^A-Za-z ]/g, '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX).trim().toLowerCase();
+  return n.replace(/(^|\s)[a-z]/g, c => c.toUpperCase());
+}
+const NAME = cleanName(q.get('name')) || 'You';
+const FROM = (q.get('from') || '').normalize('NFC').replace(/[<>&"]/g, '').trim().slice(0, 20);   // only ever set as text, but kept tame anyway
+const MSGS = q.getAll('msg').map(m => [...m.trim()].slice(0, 40).join('')).filter(Boolean).slice(0, 6);
+document.title = `For ${NAME}`;
+document.querySelector('meta[name=apple-mobile-web-app-title]').content = `For ${NAME}`;   // the home-screen app's name
+if (q.has('embed')) document.body.classList.add('embed');
+{ // the info panel: one entry per flower in the bouquet; their favorite gets a heart
+  const info = document.getElementById('info');
+  info.querySelector('h2').textContent = `a bouquet for ${NAME.toLowerCase()}`;
+  info.querySelector('dl').innerHTML = PICKS.map(p => `<dt style="color:${p.d.colour}">${p.d.name}${p.fav ? ' <span style="color:#ffd6dc">&lt;3</span>' : ''}</dt>` +
+    `<dd>${p.fav ? `${NAME}'s favorite. ` : ''}${p.d.about}</dd>`).join('');
+}
+// lay the name out in font units, then fit it into the box the original "Aria" filled:
+// 129 world units wide at most, cap height 57.8, centred on x -1.2 / midline -96.4
+const STROKES = [], DOTS = [];
+{
+  // long names squeeze: tighter letter gaps, then narrower letters (down to 60%), and only then smaller ones
+  const layout = gap => { let pen = 0; for (const ch of NAME) pen += ch === ' ' ? 4 : FONT[ch][0] + gap; return pen - gap; };
+  const gap = layout(2.2) * 5.78 > 129 ? 1.3 : 2.2;
+  let pen = 0;
+  for (const ch of NAME) {
+    if (ch === ' ') { pen += 4; continue; }
+    const [w, ...strokes] = FONT[ch];
+    for (const st of strokes) (st.length === 1 ? DOTS : STROKES).push(st.map(([x, y]) => [x + pen, y]));
+    pen += w + gap;
+  }
+  const w = pen - gap, cx = Math.max(.6, Math.min(1, 129 / (w * 5.78))), sc = Math.min(5.78, 129 / (w * cx)), sx = sc * cx;
+  const x0 = -1.2 - w * sx / 2, base = -96.4 + 5 * sc;
+  for (const st of [...STROKES, ...DOTS]) for (const p of st) { p[0] = x0 + p[0] * sx; p[1] = base + p[1] * sc; }
+  var NS = sc / 5.78;                                  // name scale relative to "Aria"
+  var HS = Math.min(1, Math.sqrt(NS) * 1.15);          // heads shrink much less than the letters, so long names stay full
+}
+// the biggest roses become the dots of i and j
+const DOT_UNITS = units.filter(u => u.type === 'head' && !u.spike).sort((a, b) => b.r - a.r).slice(0, DOTS.length);
+const isDot = u => DOT_UNITS.includes(u);
+(function assignTargets() {
+  const movers = units.filter(u => !isDot(u));
+  const len = pl => pl.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pl[i][0], p[1] - pl[i][1]), 0);
+  const lens = STROKES.map(len), tot = lens.reduce((a, b) => a + b);
+  const counts = lens.map(l => Math.max(2, Math.round(l / tot * movers.length)));
+  while (counts.reduce((a, b) => a + b) > movers.length) counts[counts.indexOf(Math.max(...counts))]--;
+  while (counts.reduce((a, b) => a + b) < movers.length) counts[lens.indexOf(Math.max(...lens))]++;
+  const pts = [];
+  STROKES.forEach((pl, si) => {
+    for (let k = 0; k < counts[si]; k++) {
+      let d = (k + .5) / counts[si] * lens[si];
+      for (let i = 1; i < pl.length; i++) {
+        const seg = Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]);
+        if (d <= seg || i === pl.length - 1) {
+          const f = Math.min(1, d / seg), wob = 2.2 * NS;
+          // a little hand-placed wobble so it reads arranged, not typeset
+          pts.push([pl[i - 1][0] + (pl[i][0] - pl[i - 1][0]) * f + (rnd2() - .5) * wob, pl[i - 1][1] + (pl[i][1] - pl[i - 1][1]) * f + (rnd2() - .5) * wob]);
+          break;
+        }
+        d -= seg;
+      }
+    }
+  });
+  // Groups (an umbel, a spray, a bunch of sprigs, a single rose) each take one
+  // contiguous run of the stroke path, so connected flowers stay together.
+  const groups = new Map();
+  movers.forEach(u => {
+    const key = u.cl !== undefined ? 'c' + u.cl : u.sp !== undefined ? 's' + u.sp : 'u' + u.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(u);
+  });
+  const cx = g => g.reduce((s, u) => s + u.hx, 0) / g.length;
+  let idx = 0;
+  [...groups.values()].sort((a, b) => cx(a) - cx(b)).forEach(g => {
+    g.sort((a, b) => (a.t ?? 0) - (b.t ?? 0) || a.hx - b.hx);
+    g.forEach(u => { [u.tx, u.ty] = pts[idx++]; });
+  });
+  DOT_UNITS.forEach((u, i) => { [u.tx, u.ty] = DOTS[i][0]; });
+  const xs = units.map(u => u.tx), lo = Math.min(...xs), hi = Math.max(...xs);
+  units.forEach(u => u.delay = clamp01((u.tx - lo) / (hi - lo || 1)) * .08);   // a slight left-to-right ripple
+})();
+
+// Stems leave the flower heading toward the tie (with a gentle sideways bow), so
+// there is never a kink where the stem meets the head or umbel.
+function stemCurve(o, hx, hy, e = 0) {
+  const dx = TIE[0] - hx, dy = TIE[1] - hy, L = Math.hypot(dx, dy) || 1;
+  // bow outward (away from the bunch's centre line) by 8-14% of the stem's length
+  // bow outward and *upward*: low, wide stems arch up like a fountain instead of sagging
+  // The side is a smooth weight, not a hard switch: a head crossing the centre line
+  // fades its bow through straight to the other side instead of flipping in one frame.
+  let nx = -dy / L, ny = dx / L;
+  const side = Math.max(-1, Math.min(1, 3 * (nx * Math.max(-1, Math.min(1, (hx - TIE[0]) / 8)) - ny * 1.5)));
+  nx *= side; ny *= side;
+  // the arc deepens as the flower travels, capped so long outer stems don't balloon
+  const bow = Math.min(L * (.08 + .06 * Math.abs(o.bend) / 5 + .12 * e), 4 + 5 * e);
+  return [[hx, hy], [hx + dx * .3 + nx * bow, hy + dy * .3 + ny * bow], [TIE[0] + o.j1 - dx * .08 + nx * bow * .45, TIE[1] - L * .22], [TIE[0] + o.j2, TIE[1]]];
+}
+function bez(P4, t) {
+  const u = 1 - t;
+  return [0, 1].map(k => u * u * u * P4[0][k] + 3 * u * u * t * P4[1][k] + 3 * u * t * t * P4[2][k] + t * t * t * P4[3][k]);
+}
+// g = growth 0..1: the stem grows out of the tie, upward to the flower and down to its cut end
+function drawStem(o, hx, hy, thin = 0, g = 1) {
+  if (g <= 0) return;
+  const C = stemCurve(o, hx, hy, thin);
+  s.beginPath();
+  const n = 22;
+  for (let i = 0; i <= n; i++) { const [px, py] = bez(C, 1 - g * i / n); i ? s.lineTo(px, py) : s.moveTo(px, py); }
+  const cx = TIE[0] + (o.ex - TIE[0]) * .25, cy = TIE[1] + 7, [x0, y0] = C[3];
+  s.moveTo(x0, y0);                                                             // the cut end below the tie
+  for (let i = 1; i <= 8; i++) { const tt = g * i / 8, u = 1 - tt; s.lineTo(u * u * x0 + 2 * u * tt * cx + tt * tt * o.ex, u * u * y0 + 2 * u * tt * cy + tt * tt * o.ey); }
+  const back = -.4 * (1 - clamp01((o.z ?? 4) / 8));   // stems deeper in the bunch sit in shadow
+  const grad = s.createLinearGradient(C[0][0], C[0][1], o.ex, o.ey);
+  grad.addColorStop(0, shade(o.col, back + .25));      // lit up near the flower
+  grad.addColorStop(.55, shade(o.col, back));
+  grad.addColorStop(.82, shade(o.col, back - .4));     // packed together at the tie: darkest
+  grad.addColorStop(1, shade(o.col, back - .15));
+  s.globalAlpha = 1 - (.55 + .3 * (1 - NS)) * thin; s.strokeStyle = grad; s.lineWidth = o.w * (1 - (.45 + .25 * (1 - NS)) * thin); s.stroke(); s.globalAlpha = 1;
+}
+
+// ---- bloom timings (seconds after load) ----
+// stems grow out of the tie (staggered, longer stems take longer), then each head
+// opens once its stem has arrived; umbels unfold floret by floret, orchid sprays
+// open from the base of the spray toward the tip.
+const ferns = [{ g0: .7 }, { g0: 1.0 }, { g0: .85 }];
+(function assignTiming() {
+  const dist = (x, y) => Math.hypot(x - TIE[0], y - TIE[1]);
+  for (const u of units) {
+    u.phase = rnd2() * TAU;
+    if (u.type === 'head') {
+      const d = dist(u.hx, u.hy);
+      u.g0 = .45 + rnd2() * .7 + d / 170; u.gD = 1.1 + d / 110;
+      u.b0 = u.g0 + u.gD - .15; u.bD = u.key === 'rose' ? 2.3 + rnd2() * .7 : 1.4 + rnd2() * .6;
+    }
+  }
+  clusters.forEach((cl, ci) => {
+    cl.g0 = .55 + rnd2() * .9; cl.gD = 1.1 + dist(...[units.find(u => u.cl === ci)].map(u => [u.hx, u.hy])[0]) / 120;
+    units.filter(u => u.cl === ci).forEach(u => { u.b0 = cl.g0 + cl.gD + .35 + rnd2() * .6; u.bD = cl.kind === 'bb' ? .7 : 1.3; });
+  });
+  sprays.forEach((sp, si) => {
+    sp.g0 = .5 + rnd2() * .6; sp.gD = 2.1;
+    units.filter(u => u.sp === si).forEach(u => { u.b0 = sp.g0 + sp.gD * u.t; u.bD = u.type === 'obud' ? .8 : 1.4; });
+  });
+  leaves.forEach(l => { l.phase = rnd2() * TAU; });
+  // uneven cut ends: about a third of the stems poke out further below the tie
+  // (done last so it doesn't shift any other random choice)
+  for (const o of [...units, ...clusters]) o.ey += rnd2() < .35 ? 2.5 + rnd2() * 3.5 : -rnd2() * 1.5;
+  for (const u of units) { u.follow = 1.5 + Math.min(1, u.z / 8) * 2.2 + rnd2() * .8; u.mm = 0; }
+})();
+const BLOOM_SLOW = 1.25;                                 // stretch the whole bloom to ~7s
+const BLOOM_END = Math.max(...units.map(u => u.b0 + u.bD)) * BLOOM_SLOW;
+
+// ---- wind ----
+// A slow gust envelope times two travelling sway waves. Everything pivots around
+// the tie; taller parts swing further and lag behind (the wave climbs the stems).
+function windAngle(T, h, phase) {
+  const gust = .55 + .45 * Math.sin(T * .23 + 1.7) * Math.sin(T * .071 + .4);
+  return gust * (.02 * Math.sin(T * .85 - h * 1.5 + phase * .15) + .007 * Math.sin(T * 2.2 - h * 2.6 + phase));
+}
+function sway(x, y, th) {
+  const dx = x - TIE[0], dy = y - TIE[1], c = Math.cos(th), sn = Math.sin(th);
+  return [TIE[0] + dx * c - dy * sn, TIE[1] + dx * sn + dy * c];
+}
+
+function scene(M, T = 1e3, wind = 1) {
+  seed = 11;
+  const E = smooth(M), WA = wind * (1 - .5 * E);         // wind eases off while the name is held
+  const Tb = T / BLOOM_SLOW, grow = (t0, d) => smooth((Tb - t0) / d);
+  for (const u of units) {
+    const x = clamp01((u.mm - u.delay) / .92), e = .5 * x + .5 * smooth(x);   // half linear: moves from the first frame
+    u.e = e;
+    const mx = u.hx + (u.tx - u.hx) * e, my = u.hy + (u.ty - u.hy) * e - Math.sin(Math.PI * e) * 3.5;   // lifts a little mid-journey
+    u.th = WA * windAngle(T, Math.hypot(mx - TIE[0], my - TIE[1]) / 90, u.phase);
+    [u.x, u.y] = sway(mx, my, u.th);
+    u.bl = grow(u.b0, u.bD);                          // this head's bloom
+  }
+  const items = [];
+  // greenery that isn't attached to a head folds out of the way
+  const fernAt = (f, i, c, tip, z) => items.push([z, () => {
+    const th = WA * windAngle(T, .9, i * 2.1);
+    P = grow(f.g0, 2.4); fern(TIE[0], TIE[1], ...sway(...c, th * .6), ...sway(...tip, th * 1.3)); P = 1;
+  }]);
+  fernAt(ferns[0], 0, [-24 + 8 * E, -64 + 16 * E], [-47 + 26 * E, -103 + 50 * E], 0);
+  fernAt(ferns[1], 1, [38 - 18 * E, -58 + 6 * E], [55 - 28 * E, -86 + 34 * E], 0);
+  fernAt(ferns[2], 2, [6 + 4 * E, -84 + 30 * E], [-9 + 12 * E, -122 + 62 * E], .5);
+  // the letters themselves grow in as a thin vine under the flowers, so every letter
+  // reads as one unbroken line however long the name is
+  const vine = smooth((E - .35) / .65);
+  if (vine > 0) items.push([.3, () => {
+    s.lineCap = s.lineJoin = 'round'; s.lineWidth = .7 + .5 * NS; s.strokeStyle = '#5fae4c'; s.globalAlpha = vine;
+    for (const st of STROKES) {
+      const segs = st.slice(1).map((p, i) => Math.hypot(p[0] - st[i][0], p[1] - st[i][1])), tot = segs.reduce((a, b) => a + b);
+      let left = tot * vine; s.beginPath(); s.moveTo(...st[0]);
+      for (let i = 1; i < st.length && left > 0; i++) { const f = Math.min(1, left / segs[i - 1]); s.lineTo(st[i - 1][0] + (st[i][0] - st[i - 1][0]) * f, st[i - 1][1] + (st[i][1] - st[i - 1][1]) * f); left -= segs[i - 1]; }
+      s.stroke();
+    }
+    s.globalAlpha = 1; s.lineCap = s.lineJoin = 'butt';
+  }]);
+
+  for (const u of units) items.push([u.z, () => {
+    const nod = u.th * 2.5;                            // heads nod a little more than their stems lean
+    if (u.type === 'head') {
+      drawStem(u, u.x, u.y, u.e, grow(u.g0, u.gD));
+      if (Tb < u.b0) return;
+      const breathe = 1 + .012 * Math.sin(T * 1.1 + u.phase);
+      // in the name every head shrinks to letter size (spikes a bit longer); i/j dots scale exactly with the letters
+      const want = isDot(u) ? 6.5 * NS : Math.min(u.r, u.spike ? 9 : 4.6) * HS;
+      const rr = (u.r + (want - u.r) * u.e) * breathe;
+      if (u.key === 'rose') {
+        P = u.bl; rose(u.x, u.y, rr, u.rot, u.tilt * (1 - .7 * u.e) + nod, u.sq + (.95 - u.sq) * u.e, u.open + (1 - u.open) * .5 * u.e); P = 1;
+        return;
+      }
+      const b = ease(u.bl * 1.1);                       // every other flower opens by growing from its centre
+      if (b <= 0) return;
+      s.save(); s.translate(u.x, u.y); s.scale(b, b);
+      seed = 1 + u.id * 7919;                           // its own random stream, the same every frame
+      BY_KEY[u.key].head(0, 0, rr, u.spike ? outward(u.x, u.y) + nod : u.rot + nod, u.v);
+      s.restore();
+      return;
+    }
+    if (Tb < u.b0) return;
+    P = u.bl;
+    if (u.type === 'dok') dokRakHead(u.x, u.y, u.r * (1 - (1 - .9 * HS) * u.e), u.rot + nod);
+    else if (u.type === 'dokbud') dokRakBud(u.x, u.y, u.r * (1 + (HS - 1) * u.e));
+    else if (u.type === 'bb') for (let k = 0; k < 5; k++) {           // a sprig of tiny white florets
+      const a = k * 1.26 + u.rot + nod;
+      const ns = 1 + (HS - 1) * u.e;
+      s.beginPath(); s.arc(u.x + Math.cos(a) * u.r * ns * (k ? 1 : 0), u.y + Math.sin(a) * u.r * ns * .8 * (k ? 1 : 0), .55 * ns * ease(u.bl * 1.3), 0, TAU);
+      s.fillStyle = '#f4eef2'; s.fill();
+    }
+    else if (u.type === 'orchid') orchid(u.x, u.y, u.r + (3.4 * HS - u.r) * u.e, u.rot + nod);
+    else if (u.type === 'obud') {
+      const b = ease(u.bl * 1.2);
+      s.beginPath(); s.ellipse(u.x, u.y, 1.1 * b, 1.7 * b, u.side * .5 + nod, 0, TAU);
+      s.fillStyle = lin(u.x, u.y - 1.7, u.x, u.y + 1.7, [[0, '#d26ccb'], [1, '#6b7a3a']]); s.fill();
+    }
+    P = 1;
+  }]);
+
+  // dok rak: one stalk to the cluster's (moving) centre, then a pedicel to every head
+  clusters.forEach((cl, ci) => items.push([cl.z - .005, () => {
+    const hs = units.filter(u => u.cl === ci);
+    // umbel: the stalk's top sits on the line from the cluster toward the tie, and
+    // the flower stalks fan out from that same axis, so it reads as one smooth stem
+    const ux = hs.reduce((a, u) => a + u.x, 0) / hs.length, uy = hs.reduce((a, u) => a + u.y, 0) / hs.length;
+    const dx = TIE[0] - ux, dy = TIE[1] - uy, dl = Math.hypot(dx, dy) || 1, ax = dx / dl, ay = dy / dl;
+    const spread = Math.max(...hs.map(u => Math.hypot(u.x - ux, u.y - uy)));
+    const mx = ux + ax * (spread + cl.R * .9), my = uy + ay * (spread + cl.R * .9);
+    drawStem(cl, mx, my, E, grow(cl.g0, cl.gD));
+    const gp = grow(cl.g0 + cl.gD, .45);
+    if (gp <= 0) return;
+    for (const u of hs) {
+      const qx = mx - ax * cl.R * .9, qy = my - ay * cl.R * .9;
+      s.beginPath(); s.moveTo(mx, my); s.quadraticCurveTo(mx + (qx - mx) * gp, my + (qy - my) * gp, mx + (u.x - mx) * gp, my + (u.y - my) * gp);
+      s.strokeStyle = cl.kind === 'bb' ? 'rgba(80,120,64,.7)' : '#3b7a3f'; s.lineWidth = cl.kind === 'bb' ? .15 : cl.R * .07; s.stroke();
+    }
+  }]));
+
+  // orchid sprays: the arching stem threads through its flowers wherever they've moved
+  sprays.forEach((sp, si) => items.push([sp.z - .005, () => {
+    const fl = units.filter(u => u.sp === si).sort((a, b) => a.t - b.t);
+    const pts = [[TIE[0] + si - 1, TIE[1]], ...fl.map(u => [u.x - u.side * 2.2, u.y - 1])];
+    // bow the run from the tie to the first flower outward, deeper as it stretches
+    const [ax, ay] = pts[0], [bx, by] = pts[1], sl = Math.hypot(bx - ax, by - ay) || 1;
+    let nx = -(by - ay) / sl, ny = (bx - ax) / sl;
+    const side = Math.max(-1, Math.min(1, 3 * (nx * Math.max(-1, Math.min(1, (bx - TIE[0]) / 8)) - ny * 1.5)));
+    nx *= side; ny *= side;                             // smooth side choice, same as stemCurve
+    const sb = Math.min(sl * (.1 + .12 * E), 4 + 5 * E);
+    pts.splice(1, 0, [ax + (bx - ax) * .25 + nx * sb, ay + (by - ay) * .25 + ny * sb], [ax + (bx - ax) * .6 + nx * sb * .8, ay + (by - ay) * .6 + ny * sb * .8]);
+    // sample the smooth chain into a polyline so it can be drawn growing out of the tie
+    const poly = [pts[0]];
+    let prev = pts[0];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const end = i < pts.length - 2 ? [(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2] : pts[i + 1];
+      for (let k = 1; k <= 6; k++) { const tt = k / 6, u = 1 - tt; poly.push([u * u * prev[0] + 2 * u * tt * pts[i][0] + tt * tt * end[0], u * u * prev[1] + 2 * u * tt * pts[i][1] + tt * tt * end[1]]); }
+      prev = end;
+    }
+    const g = grow(sp.g0, sp.gD), keep = Math.max(1, Math.round(g * (poly.length - 1)));
+    if (g > 0) {
+      s.beginPath(); s.moveTo(...poly[0]); for (let i = 1; i <= keep; i++) s.lineTo(...poly[i]);
+      s.strokeStyle = '#4c6b2e'; s.lineWidth = .55; s.stroke();
+    }
+    fl.forEach((u, i) => { if (Tb < u.b0 - .15) return; s.beginPath(); s.moveTo(...pts[i + 3]); s.lineTo(u.x, u.y); s.strokeStyle = '#4c6b2e'; s.lineWidth = .3; s.stroke(); });
+  }]));
+
+  for (const l of leaves) items.push([l.z, () => {
+    const he = l.host.e, tt = l.t + .4 * he;
+    const C = stemCurve(l.host, l.host.x, l.host.y, he), [px, py] = bez(C, tt), [qx, qy] = bez(C, tt + .02);
+    const tan = Math.atan2(qy - py, qx - px) + Math.PI / 2, up = Math.atan2(px - qx, qy - py);   // up = back along the stem
+    const a0 = tan * .35 + l.a, a1 = up + Math.sign(l.a) * .3;
+    const reached = grow(l.host.g0, l.host.gD) - (1 - tt);
+    if (reached <= 0) return;
+    const flutter = WA * .07 * Math.sin(T * 3.1 + l.phase) * (.6 + .4 * Math.sin(T * .7 + l.phase));
+    P = smooth(reached / .3); leaf(px, py, a0 + (a1 - a0) * he + flutter, l.len * (1 - .5 * he), l.w * (1 - .35 * he), .5 * clamp01((6.5 - l.z) / 4)); P = 1;
+  }]);
+
+  items.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
+  s.globalAlpha = smooth(T / .8);
+  s.save(); s.translate(TIE[0], TIE[1]); s.rotate(.08);                 // twine
+  for (let k = -1; k <= 1; k++) { s.beginPath(); s.ellipse(0, k * 1.1, 4.2, .9, 0, 0, Math.PI); s.strokeStyle = '#b89a6a'; s.lineWidth = .55; s.stroke(); }
+  s.restore(); s.globalAlpha = 1;
+}
+
+// ---------- ASCII pass ----------
+const still = q.has('m') || q.has('bt');            // ?m= / ?bt= freeze a single moment for inspection
+let hist = null, prevL = null, prevR, prevG, prevB, prevA, dim = 1;
+let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.get('bt') : 1e3, q.has('bt') ? 0 : 1];
+function setup() {
+  const W = innerWidth, H = innerHeight, dpr = Math.min(3, devicePixelRatio || 1);   // full res: a 2x canvas on a 3x phone looks blurry
+  c.style.width = W + 'px'; c.style.height = H + 'px';
+  const cols = +q.get('cols') || Math.round(Math.max(90 + 8 * Math.max(0, NAME.replace(/ /g, '').length - 4), Math.min(250, W / 5.6)));   // long names get a finer grid on phones so every letter stays readable
+  const cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); x.setTransform(1, 0, 0, 1, 0, 0);   // device pixels, no scaling
+  // WebKit (Safari, iOS and Mac) builds the canvas's display layer at the size it had when
+  // first drawn and doesn't rebuild it on resize, so it showed a low-res copy, stretched.
+  // Re-inserting the element after sizing forces a fresh layer at full resolution.
+  { const next = c.nextSibling, parent = c.parentNode; parent.removeChild(c); parent.insertBefore(c, next); }
+  S.width = cols * SS; S.height = rows * SS; prevL = null; hist = null;
+  // body padding: the widest moment (the spelled-out name) spans ~146 world units
+  const pad = Math.max(16, W * .04);
+  G_ = { W, H, cols, rows, cw, ch, fs, dpr, k: Math.min((W - 2 * pad) / 134, (H - 2 * pad) / 118) };   // measured extents of rest + Aria states
+  frame(...cur);
+}
+function frame(M, T = 1e3, wind = 1) {
+  cur = [M, T, wind];
+  if (still) for (const u of units) u.mm = M;
+  const { W, H, cols, rows, cw, ch, fs, k, dpr } = G_;
+  s.setTransform(1, 0, 0, 1, 0, 0); s.clearRect(0, 0, S.width, S.height);
+  s.setTransform(SS / cw, 0, 0, SS / ch, 0, 0);                // screen px -> sample px
+  s.translate(W / 2 + (-4.3 + 7.1 * smooth(M)) * k, H / 2 + 67.5 * k); s.scale(k, k);   // gentle pan: each state is centred          // bouquet world units
+  scene(M, T, wind);
+
+  const d = s.getImageData(0, 0, S.width, S.height).data, SW = S.width;
+  const N = cols * rows, L = new Float32Array(N), R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N), A = new Float32Array(N);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let dy = 0; dy < SS; dy++) for (let dx = 0; dx < SS; dx++) {
+      const o = ((j * SS + dy) * SW + i * SS + dx) * 4, al = d[o + 3];
+      r += d[o] * al; g += d[o + 1] * al; b += d[o + 2] * al; a += al;
+    }
+    const kk = j * cols + i;
+    A[kk] = a / (255 * SS * SS);
+    if (a) { R[kk] = r / a; G[kk] = g / a; B[kk] = b / a; }
+    L[kk] = (.3 * R[kk] + .59 * G[kk] + .11 * B[kk]) / 255 * A[kk];
+  }
+  // temporal smoothing: each cell eases toward its new value, a light motion blur
+  // that stops glyphs flickering as shapes slide across the grid
+  if (prevL && prevL.length === N && !still) {
+    for (let kk = 0; kk < N; kk++) {
+      const w = .5;
+      L[kk] = prevL[kk] + (L[kk] - prevL[kk]) * w; A[kk] = prevA[kk] + (A[kk] - prevA[kk]) * w;
+      if (A[kk] > .02 && prevA[kk] > .02) { R[kk] = prevR[kk] + (R[kk] - prevR[kk]) * w; G[kk] = prevG[kk] + (G[kk] - prevG[kk]) * w; B[kk] = prevB[kk] + (B[kk] - prevB[kk]) * w; }
+    }
+  }
+  prevL = L; prevR = R; prevG = G; prevB = B; prevA = A;
+  x.fillStyle = '#0b0a0d'; x.fillRect(0, 0, c.width, c.height);
+  // text is set at its real device-pixel size: WebKit renders small canvas fonts soft if a
+  // scale transform does the enlarging
+  x.font = `${fs < 9 ? 'bold ' : ''}${Math.round(fs * dpr * 10) / 10}px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace`;
+  x.textBaseline = 'top';
+  const buckets = new Map();
+  if (!hist || hist.length !== N || still) hist = new Uint8Array(N);
+  const at = (i, j) => (i < 0 || j < 0 || i >= cols || j >= rows) ? 0 : L[j * cols + i];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const kk = j * cols + i;
+    if (A[kk] < .06) { hist[kk] = 0; continue; }
+    const l = Math.min(1, L[kk] * 1.35);
+    // Sobel on the cell grid; cells are ~2x taller than wide, so weight gy
+    const gx = (at(i + 1, j - 1) + 2 * at(i + 1, j) + at(i + 1, j + 1)) - (at(i - 1, j - 1) + 2 * at(i - 1, j) + at(i - 1, j + 1));
+    const gy = ((at(i - 1, j + 1) + 2 * at(i, j + 1) + at(i + 1, j + 1)) - (at(i - 1, j - 1) + 2 * at(i, j - 1) + at(i + 1, j - 1))) * .5;
+    // Hysteresis: a cell only changes glyph once the new value is clearly past the
+    // boundary, so cells sitting on a threshold don't toggle back and forth.
+    let glyph, code;                                   // code: 0 empty, 1..4 edge dir, 10+ ramp index
+    const was = hist[kk], mag = Math.hypot(gx, gy);
+    if (l > .06 && mag > (was >= 1 && was <= 4 ? EDGE * .8 : EDGE * 1.1)) {
+      const ang = (Math.atan2(gy, gx) + Math.PI) % Math.PI, fd = ang / (Math.PI / 4);
+      let dir = Math.round(fd) % 4;
+      if (was >= 1 && was <= 4) {                      // keep the old direction unless clearly turned
+        const pd = was - 1, dist = Math.min(Math.abs(fd - pd), 4 - Math.abs(fd - pd));
+        if (dist < .75) dir = pd;
+      }
+      code = dir + 1; glyph = EDGES[dir];
+    } else {
+      if (l < (was ? .025 : .045)) { hist[kk] = 0; continue; }
+      const fi = Math.pow(l, .8) * (RAMP.length - 1);
+      let idx = Math.max(1, Math.min(RAMP.length - 1, Math.round(fi)));
+      if (was >= 10 && Math.abs(fi - (was - 10)) < .8) idx = was - 10;
+      code = idx + 10; glyph = RAMP[idx];
+    }
+    hist[kk] = code;
+    const mx = Math.max(R[kk], G[kk], B[kk], 1), gain = dim * Math.min(255 / mx, Math.max(1.25 + .6 * (1 - l), (95 + 160 * Math.sqrt(l)) / mx));   // bright, but darker stays darker
+    // bucket by colour (5 bits/channel) so fillStyle changes a few hundred times, not thousands
+    const key = (Math.min(255, R[kk] * gain) >> 3) << 10 | (Math.min(255, G[kk] * gain) >> 3) << 5 | (Math.min(255, B[kk] * gain) >> 3);
+    let bucket = buckets.get(key);
+    if (!bucket) buckets.set(key, bucket = []);
+    bucket.push(glyph, Math.round(i * cw * dpr), Math.round(j * ch * dpr));
+  }
+  for (const [key, bucket] of buckets) {
+    x.fillStyle = `rgb(${(key >> 10) << 3},${(key >> 5 & 31) << 3},${(key & 31) << 3})`;
+    for (let n = 0; n < bucket.length; n += 3) x.fillText(bucket[n], bucket[n + 1], bucket[n + 2]);
+  }
+}
+
+setup();
+addEventListener('resize', setup);
+// is a screen point on the flowers? (any drawn character within `reach` css px of it;
+// fingers get more reach than a mouse)
+function onFlowers(px, py, reach) {
+  if (!G_ || !hist) return false;
+  const { cols, rows, cw, ch } = G_, ri = Math.ceil(reach / cw), rj = Math.ceil(reach / ch);
+  const ci = Math.floor(px / cw), cj = Math.floor(py / ch);
+  for (let j = Math.max(0, cj - rj); j <= Math.min(rows - 1, cj + rj); j++)
+    for (let i = Math.max(0, ci - ri); i <= Math.min(cols - 1, ci + ri); i++)
+      if (hist[j * cols + i]) return true;
+  return false;
+}
+// a hand cursor over the flowers
+// While the tap hint is up, only the hint box shows the hand (clicking the flowers
+// still works; this is just the cursor).
+let mouse = null;
+// The cursor is decided here, from a fresh hit-test at the mouse's last position, and set on
+// the root (everything inherits it). Re-run every frame, so it stays right when the flowers or
+// the bobbing hint move under a mouse that isn't moving.
+const updateCursor = () => {
+  let want = false;
+  if (mouse) {
+    const el = document.elementFromPoint(mouse[0], mouse[1]);
+    if (el === c) want = !document.body.classList.contains('paused') && onFlowers(mouse[0], mouse[1], 6);
+    else if (el && document.getElementById('hint').contains(el)) want = true;   // only its trimmed backing is hittable
+  }
+  document.documentElement.style.cursor = want ? 'pointer' : '';
+};
+addEventListener('mousemove', e => { mouse = [e.clientX, e.clientY]; updateCursor(); });
+// ---- timeline ----
+// bloom (~7s) -> idle in the wind -> after a moment the scene "pauses" (dims, wind
+// slows) and a hint appears -> each tap toggles bouquet <-> "Aria". A tap mid-morph
+// simply turns it around: M is eased toward its target with a smooth velocity, so a
+// reversal decelerates and comes back rather than snapping. Taps during the bloom are
+// ignored.
+const HINT_AFTER = 2.5, M_SPEED = 1 / 2.8;            // a clean morph takes ~3s
+const hint = document.getElementById('hint');
+{ // ASCII box sized to whichever verb fits the device
+  const verb = matchMedia('(pointer: fine)').matches ? 'click' : 'tap', inner = `  ${verb} the flowers  `;
+  hint.innerHTML = `<span class="bob">.${'-'.repeat(inner.length)}.\n|  <b>${verb}</b> the flowers  |\n'${'-'.repeat(inner.length)}'</span>`;
+}
+
+// ---- the note ----
+// Types "to: <name>, from: <sender>", and every so often backspaces it away and types one
+// of these instead, then goes back. Driven by the same clock, so replay restarts it.
+const NOTE = `to: ${NAME.toLowerCase()}` + (FROM ? `, from: ${FROM.toLowerCase()}` : '');
+document.getElementById('note').setAttribute('aria-label', NOTE);
+// The messages, in the order they play (looping). NOTE must be in here once.
+const ORDER = [NOTE, ...MSGS.filter(m => m !== NOTE)];
+const GAP = .45, HOLD_MAIN = 8, HOLD_MSG = 4;
+// backspacing is tapped, not held: each press gets its own uneven gap, with the odd
+// longer hesitation. Hashed from (cycle, keystroke) so it's identical on every replay.
+const hash = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return v - Math.floor(v); };
+const backGap = (i, k) => .085 + .11 * hash(i, k) + (hash(k, i + 7) < .12 ? .22 : 0);
+// typing is human too: uneven key gaps, a beat after spaces and commas, the odd pause
+const typeGap = (i, k, s) => .05 + .07 * hash(i, k + 50) + (k && ' ,'.includes(s[k - 1]) ? .07 : 0) + (hash(k + 50, i) < .07 ? .2 : 0);
+// Every run (page load or replay) opens with NOTE, then carries on through ORDER from
+// `resume`. Replay resumes with whatever was due next, skipping NOTE if that's what was
+// due, so it never shows twice in a row.
+const notePos = ORDER.indexOf(NOTE);
+let resume = (notePos + 1) % ORDER.length, noteCycle = 0;
+const orderIdx = i => i === 0 ? notePos : (resume + i - 1) % ORDER.length;
+const message = i => ORDER[orderIdx(i)];
+function noteAt(t) {                                   // t = seconds since typing began -> [text, caret busy]
+  if (t < 0) return ['', false];
+  for (let i = 0; ; i++) {
+    noteCycle = i;
+    const s = message(i), hold = s === NOTE ? HOLD_MAIN : HOLD_MSG;
+    const ch = [...s];                                 // whole characters, so an emoji types as one key
+    let j = 0;
+    while (j < ch.length && t >= typeGap(i, j, ch)) t -= typeGap(i, j++, ch);
+    if (j < ch.length) return [ch.slice(0, j).join(''), true];
+    if (t < hold) return [s, false];
+    t -= hold;
+    let k = 0;
+    while (k < ch.length && t >= backGap(i, k)) t -= backGap(i, k++);
+    if (k < ch.length) return [ch.slice(0, ch.length - k).join(''), true];
+    if (t < GAP) return ['', false];
+    t -= GAP;
+  }
+}
+const noteEl = document.getElementById('note'), typed = document.getElementById('typed');
+let shown = null;
+
+let target = 0, M = 0, Mv = 0, lagged = false, drift = 1, hinted = q.has('embed'), windScale = 1, lastT = 0;
+function toggle(T) {
+  if (T < BLOOM_END - 1) return;                      // ignored until the bloom has (visibly) finished
+  const finished = M === target && Mv === 0 && !lagged;
+  // the turnaround can take no longer than the interrupted morph had left to run, so a
+  // tap just before it lands turns around about as fast as a tap after it lands
+  if (!finished) drift = Math.max(.04, Math.abs(target - M) / M_SPEED);
+  target = 1 - target;
+  if (finished) {                                     // clean morph: everything together, moving from the first frame
+    lagged = false;
+    Mv = Math.sign(target - M) * M_SPEED;
+    for (const u of units) u.mm = M;
+  } else lagged = true;                               // interrupted mid-morph: momentum + parallax turnaround
+  hinted = true;
+  document.body.classList.remove('paused');
+  updateCursor();
+}
+function stepMorph(dt) {
+  // seconds until M arrives; the parallax and the drift are squeezed to fit inside it,
+  // so the effect never outlasts the morph or makes a short trip feel sluggish
+  const rem = Math.max(.05, Math.abs(target - M) / M_SPEED);
+  const want = Math.max(-M_SPEED, Math.min(M_SPEED, (target - M) * 2.4));   // cruise, then ease into the end
+  Mv += (want - Mv) * Math.min(1, dt * (lagged ? Math.min(14, Math.max(4, 1.2 / rem, 2.2 / drift)) : 5));
+  M = clamp01(M + Mv * dt);
+  if (Math.abs(target - M) < .0005 && Math.abs(Mv) < .002) { M = target; Mv = 0; }
+  if (!lagged) { for (const u of units) u.mm = M; return; }
+  // parallax: each flower trails M with its own lag (deeper ones lag more), catching up
+  // faster as the remaining time runs out so they all land together with M
+  let settled = M === target;
+  for (const u of units) {
+    u.mm += (M - u.mm) * Math.min(1, dt * Math.max(u.follow * 2.2, 3 / rem, 2.5 / drift));   // light lag: a stagger, not a stall
+    if (Math.abs(u.mm - M) > .001) settled = false;
+  }
+  if (settled) { lagged = false; for (const u of units) u.mm = M; }
+}
+if (!still) {
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const start = () => performance.now() - (calm ? (BLOOM_END + 1) * 1000 : 0);   // reduced motion: start fully bloomed
+  let t0 = start();
+  const now = () => (performance.now() - t0) / 1000;
+  const btn = document.getElementById('info-btn'), info = document.getElementById('info');
+  { // "keep these flowers" only where it works: iPhone/iPad Safari, not already opened from the home screen
+    const ua = navigator.userAgent;
+    const iOS = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const otherApp = /CriOS|FxiOS|EdgiOS|Line\/|Instagram|FBAN|FBAV|GSA\//.test(ua);   // in-app browsers can't add to home screen
+    const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    document.getElementById('keep').hidden = !(iOS && !otherApp && !installed);
+  }
+  const infoFrame = info.querySelector('.frame');   // (not `frame`: that's the render function)
+  function fitInfo() {
+    // character cell of the frame font, measured in place
+    const probe = Object.assign(document.createElement('span'), { textContent: '0'.repeat(20) });
+    infoFrame.appendChild(probe); const cw = probe.getBoundingClientRect().width / 20; probe.remove();
+    const lh = parseFloat(getComputedStyle(info).lineHeight);
+    // visible (ink) edges of the corner icons: the stroke of "[" in [↺] and of "]" in [i]
+    const box = el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
+    const k = document.createElement('canvas').getContext('2d');
+    k.font = getComputedStyle(replay).font; const mo = k.measureText('[');
+    k.font = getComputedStyle(btn).font; const mc = k.measureText(']');
+    const L = box(replay).left - mo.actualBoundingBoxLeft;
+    const Rr = box(btn).right - mc.width + mc.actualBoundingBoxRight;
+    // where the "|" ink sits inside its character cell (measured, not assumed)
+    k.font = getComputedStyle(infoFrame).font;
+    const m = k.measureText('|'), inL = -m.actualBoundingBoxLeft, inR = m.actualBoundingBoxRight;
+    info.style.height = '';
+    if (innerWidth < 768) {
+      // phones: span from [↺] to [i]. Whole characters can't hit both edges exactly, so the
+      // frame's letter spacing stretches a fraction of a pixel to land on both
+      const span = Rr - L - (inR - inL), cols = Math.round(span / cw) + 1, step = span / (cols - 1);
+      infoFrame.style.letterSpacing = (step - cw) + 'px';
+      info.style.left = (L - inL) + 'px';
+      info.style.width = (cols - 1) * step + cw + 'px';
+      fitRows(cols, lh);
+    } else {
+      // desktop: a 360px panel whose right "|" lines up with the right edge of [i]
+      const cols = Math.max(20, Math.floor(360 / cw));
+      infoFrame.style.letterSpacing = '';
+      info.style.left = (Rr - inR - (cols - 1) * cw) + 'px';
+      info.style.width = cols * cw + 'px';
+      fitRows(cols, lh);
+    }
+  }
+  function fitRows(cols, lh) {                          // height in whole lines, then draw the frame
+    // shrink the text (never below 9.5px) until the panel fits above the note, so it never scrolls
+    const body = info.querySelector('.scroll'), room = noteEl.getBoundingClientRect().top - 10 - info.offsetTop;
+    let fs = 12.5; body.style.fontSize = fs + 'px';
+    while (info.getBoundingClientRect().height > room && fs > 9.5) body.style.fontSize = (fs -= .25) + 'px';
+    const rows = Math.ceil(info.getBoundingClientRect().height / lh);
+    info.style.height = rows * lh + 'px';
+    // Colour each frame line after the text beside it (a flower section takes its name's
+    // colour), blending smoothly between sections so the sides read as a gradient.
+    const top = info.getBoundingClientRect().top, rgb = el => getComputedStyle(el).color.match(/\d+/g).slice(0, 3).map(Number);
+    const anchors = [];                                  // [vertical centre, colour] per block of text
+    const add = (els, colourEl) => {
+      const rs = els.map(e => e.getBoundingClientRect()).filter(r => r.height);
+      if (rs.length) anchors.push([(Math.min(...rs.map(r => r.top)) + Math.max(...rs.map(r => r.bottom))) / 2 - top, rgb(colourEl)]);
+    };
+    const h2 = body.querySelector('h2'); add([h2], h2);
+    body.querySelectorAll('dt').forEach(dt => add([dt, dt.nextElementSibling], dt));
+    const foot = body.querySelector('p'); add([foot], foot);
+    const keep = body.querySelector('#keep'); if (!keep.hidden) add([keep], keep.firstElementChild);
+    const colourAt = y => {
+      if (y <= anchors[0][0]) return anchors[0][1];
+      for (let i = 1; i < anchors.length; i++) if (y <= anchors[i][0]) {
+        const [y0, c0] = anchors[i - 1], [y1, c1] = anchors[i], f = (y - y0) / (y1 - y0);
+        return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
+      }
+      return anchors[anchors.length - 1][1];
+    };
+    const paint = (text, [cr, cg, cb]) => `<span style="color:rgb(${cr},${cg},${cb});text-shadow:0 0 12px rgba(${cr},${cg},${cb},.4)">${text}</span>`;
+    // Top/bottom bars take the colours of the text actually nearest each character: every
+    // run of text pulls with its own colour (dimmed by any opacity, e.g. the Thai names),
+    // weighted so the nearest line dominates; where that line ends, the bar falls through to
+    // the next line's colours. Same idea as the sides, but across the bar.
+    const left = info.getBoundingClientRect().left, cw2 = info.getBoundingClientRect().width / cols, segs = [];
+    const BG = [11, 10, 13];
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const el = n.parentElement; let o = 1;
+      for (let e = el; e && e !== body; e = e.parentElement) o *= parseFloat(getComputedStyle(e).opacity);
+      const c = rgb(el).map((v, i) => Math.round(v * o + BG[i] * (1 - o)));
+      const rng = document.createRange(); rng.selectNodeContents(n);
+      for (const r of rng.getClientRects()) if (r.width) segs.push([r.left - left, r.right - left, (r.top + r.bottom) / 2 - top, c]);
+    }
+    const mixAt = (x, y) => {
+      let w = 0, acc = [0, 0, 0];
+      for (const [x0, x1, ym, c] of segs) {
+        const dx = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
+        const k = Math.exp(-Math.abs(ym - y) / 26) * Math.exp(-dx / 14);   // nearest line leads, the next ones still mix in
+        w += k; acc = acc.map((v, i) => v + c[i] * k);
+      }
+      return w ? acc.map(v => Math.round(v / w)) : [255, 214, 220];
+    };
+    // top bar from the text below it; the bottom bar is the same colours mirrored left-right
+    const topColours = [...Array(cols)].map((_, i) => mixAt((i + .5) * cw2, .5 * lh));
+    const barLine = (ends, colours) => [...ends[0] + '-'.repeat(cols - 2) + ends[1]].map((ch, i) => paint(ch, colours[i])).join('');
+    const lines = [barLine('..', topColours)];
+    for (let r = 1; r < rows - 1; r++) lines.push(paint(`|${' '.repeat(cols - 2)}|`, colourAt((r + .5) * lh)));
+    lines.push(barLine("''", [...topColours].reverse()));
+    infoFrame.innerHTML = lines.join('\n');
+  }
+  addEventListener('resize', () => { if (info.classList.contains('open')) fitInfo(); });
+  const setInfo = open => { if (open) fitInfo(); info.classList.toggle('open', open); btn.setAttribute('aria-expanded', open); };
+  btn.addEventListener('click', () => setInfo(!info.classList.contains('open')));
+  // replay: back to an empty screen and the full bloom. The hint comes back only if
+  // she hadn't tapped the flowers yet.
+  const replay = document.getElementById('replay');
+  replay.addEventListener('click', () => {
+    hinted = hinted && !document.body.classList.contains('paused');
+    // replay clears the hint quickly (tapping the flowers keeps the slower fade)
+    hint.style.transition = 'opacity .2s ease, transform .2s ease'; setTimeout(() => hint.style.transition = '', 250);
+    document.body.classList.remove('paused');
+    setInfo(false);
+    let next = orderIdx(noteCycle + 1);                 // whatever was due after the current message
+    if (next === notePos) next = (next + 1) % ORDER.length;
+    resume = next;
+    dim = 1;
+    t0 = start(); target = M = Mv = 0; lagged = false; drift = 1; windScale = 1; lastT = 0; shown = null;
+    for (const u of units) u.mm = 0;
+    prevL = null; hist = null;                          // no smoothing carried over from the old frame
+  });
+  // Home-screen app: iOS resumes it where it was left rather than reloading, so every
+  // time it comes back on screen, start over with a fresh bloom (same as pressing replay)
+  const replayIfApp = () => { if (document.body.classList.contains('app')) replay.click(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') replayIfApp(); });
+  addEventListener('pageshow', e => { if (e.persisted) replayIfApp(); });
+  addEventListener('pointerdown', e => {
+    const el = e.target instanceof Node ? e.target : null;
+    if (el && (btn.contains(el) || info.contains(el) || replay.contains(el))) return;
+    if (info.classList.contains('open')) { setInfo(false); return; }   // a tap outside just closes the panel
+    // only a tap on the flowers (or on the hint) toggles; empty space does nothing
+    if ((el && hint.contains(el)) || onFlowers(e.clientX, e.clientY, e.pointerType === 'mouse' ? 6 : 18)) toggle(now());
+  });
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') return setInfo(false);
+    if ((e.key === ' ' || e.key === 'Enter') && e.target === document.body) { e.preventDefault(); toggle(now()); }
+  });
+  (function loop() {
+    const T = now(), dt = Math.min(.1, T - lastT); lastT = T;
+    const typeAt = BLOOM_END - .6;                    // starts typing as the last flowers finish opening
+    document.body.classList.toggle('bloomed', T > typeAt - .3);
+    const [txt, busy] = noteAt(T - typeAt);
+    if (txt !== shown) { shown = txt; typed.textContent = txt; }
+    noteEl.classList.toggle('typing', busy);
+    if (!hinted && T > BLOOM_END + HINT_AFTER) { hinted = true; document.body.classList.add('paused'); updateCursor(); }
+    // the wind eases in as the last flowers open, and nearly stops while paused
+    const paused = document.body.classList.contains('paused');
+    windScale += ((paused ? .25 : 1) - windScale) * Math.min(1, dt * 1.5);
+    dim += ((paused ? .42 : 1) - dim) * Math.min(1, dt * 3);   // the pause dims the flowers in-canvas
+    stepMorph(dt);
+    frame(M, calm ? 1e3 : T, calm ? 0 : smooth((T - 3.5) / 3) * windScale);
+    if (mouse) updateCursor();                         // flowers can move under a resting cursor
+    requestAnimationFrame(loop);
+  })();
+}
+</script>
+</html>
