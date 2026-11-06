@@ -133,7 +133,8 @@ def mail_link(i, to, d):
                                                       headers={'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json'}), timeout=20)
         sys.stderr.write(f'mailed {i}\n')
     except Exception as e:   # never take the API down over an email
-        sys.stderr.write(f'mail {i} failed: {e}\n')
+        why = e.read().decode(errors='replace')[:300] if isinstance(e, urllib.error.HTTPError) else ''
+        sys.stderr.write(f'mail {i} failed: {e} {why}\n')
         db().execute('update bouquets set mailed=null where id=?', (i,))
 
 
