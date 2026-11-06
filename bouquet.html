@@ -40,6 +40,8 @@
     font-size:15px;cursor:pointer;transition:opacity .3s}
   #info-btn{right:calc(10px + env(safe-area-inset-right))}
   #replay{left:calc(10px + env(safe-area-inset-left))}
+  #edit{left:50%;transform:translateX(-50%);opacity:.85;font-size:13px;white-space:nowrap}   /* ?edit: back to the create page */
+  #edit[hidden]{display:none}
   /* the note: top centre, on the same line as the two corner buttons; fades in once the bloom is done */
   #note{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);margin:0;
     height:44px;line-height:44px;white-space:nowrap;font-size:13px;color:#ffd6dc;opacity:0;pointer-events:none;
@@ -82,6 +84,7 @@
 <canvas id="c" aria-label="An ASCII-art bouquet of flowers"></canvas>
 <pre id="hint" role="status" aria-live="polite"></pre>
 <p id="note" class="mono"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
+<button id="edit" class="mono corner" hidden>[ &lt; keep editing ]</button>
 <button id="replay" class="mono corner" aria-label="Replay the bloom">[<span class="spin">↺</span>]</button>
 <button id="info-btn" class="mono corner" aria-label="About these flowers" aria-expanded="false" aria-controls="info">[i]</button>
 <section id="info" class="mono" role="dialog" aria-label="About these flowers">
@@ -695,6 +698,12 @@ function frame(M, T = 1e3, wind = 1) {
 }
 
 setup();
+// ?edit: opened as the create page's preview. One tap back to the form, which restores itself.
+const editBtn = document.getElementById('edit');
+if (q.has('edit') && !window.BID) {
+  editBtn.hidden = false;
+  editBtn.onclick = () => history.length > 1 ? history.back() : location.replace('./');
+}
 // Home-screen icon: drawn once, by the first browser to show the bouquet. A hidden 180px copy
 // of this page renders one still frame at low density (like the original rose icon) and saves it.
 if (window.BID && q.has('icon')) c.toBlob(png => fetch('api/icon/' + BID, { method: 'POST', body: png }), 'image/png');
@@ -953,7 +962,7 @@ if (!still) {
   addEventListener('pageshow', e => { if (e.persisted) replayIfApp(); });
   addEventListener('pointerdown', e => {
     const el = e.target instanceof Node ? e.target : null;
-    if (el && (btn.contains(el) || info.contains(el) || replay.contains(el))) return;
+    if (el && (btn.contains(el) || info.contains(el) || replay.contains(el) || editBtn.contains(el))) return;
     if (info.classList.contains('open')) { setInfo(false); return; }   // a tap outside just closes the panel
     // only a tap on the flowers (or on the hint) toggles; empty space does nothing
     if ((el && hint.contains(el)) || onFlowers(e.clientX, e.clientY, e.pointerType === 'mouse' ? 6 : 18)) toggle(now());

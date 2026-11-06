@@ -71,9 +71,6 @@
   @media (max-width:360px){#mini{flex-basis:92px}}
   .big.go{border-color:var(--pink);color:var(--pink)}
   .big:disabled{opacity:.35;cursor:default}
-  #full{position:fixed;inset:0;z-index:5;background:var(--bg);display:none}
-  #full.open{display:block}
-  #full iframe{border:0;width:100%;height:100%}
   /* checkout: a sheet over the page, same frame-and-prompt look */
   #pay{position:fixed;inset:0;z-index:6;background:rgba(11,10,13,.97);display:none;overflow-y:auto;-webkit-overflow-scrolling:touch}
   #pay.open{display:block}
@@ -91,7 +88,6 @@
   #done{text-align:center;padding-top:30px}
   #done .url{display:block;margin:14px 0 18px;color:var(--pink);font-size:17px;word-break:break-all;text-decoration:none}
   #done .row{justify-content:center}
-  #full .close{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:var(--red);text-shadow:0 0 10px rgba(255,92,108,.45);min-height:44px;padding:0 12px;font-size:13px;background:rgba(11,10,13,.8)}
   @media (min-width:900px){
     main{max-width:1180px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;padding-bottom:0}
     .small,body.docked .small{max-width:1180px;padding-bottom:28px}
@@ -121,7 +117,7 @@
 
     <h2 class="sec">step 3 · little notes</h2>
     <p class="hint">optional. they take turns typing under the flowers, after "to: ..., from: ...".</p>
-    <div class="prompt"><label for="msg">&gt; note:</label><input id="msg" autocomplete="off" autocapitalize="off" maxlength="40" placeholder="happy birthday"><button id="addmsg" aria-label="Add note">[+]</button></div>
+    <div class="prompt"><label for="msg">&gt; note:</label><input id="msg" autocomplete="off" autocapitalize="off" maxlength="40" placeholder="i &lt;3 u"><button id="addmsg" aria-label="Add note">[+]</button></div>
     <ul class="notes" id="notes"></ul>
     </div>
 
@@ -168,7 +164,6 @@
     </div>
   </div>
 </div>
-<div id="full"><button class="close" id="close">[ x close ]</button></div>
 <script src="https://js.stripe.com/v3/"></script>
 <script src="flowers.js?v=1"></script>
 <script>
@@ -176,6 +171,9 @@
 // The bouquet itself is bouquet.html, shown live in the dock as you go.
 const MAX = { focal: 3, filler: 2 }, MAX_NOTES = 6;
 const state = { picks: [], fav: null, notes: [] };      // picks: flower keys in the order chosen
+const DRAFT = 'flowers-draft';                          // this tab's work in progress, kept across the preview
+const saveDraft = () => { try { sessionStorage.setItem(DRAFT, JSON.stringify({ to: $('to').value, from: $('from').value, ...state })); } catch (e) {} };
+const clearDraft = () => { try { sessionStorage.removeItem(DRAFT); } catch (e) {} };
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -202,8 +200,19 @@ function toggle(d) {
 // the name: letters and spaces only, the same rule the bouquet uses to spell it
 $('to').addEventListener('input', e => { const v = e.target.value.normalize('NFD').replace(/[^A-Za-z ]/g, '').replace(/ {2,}/g, ' ').slice(0, 9); if (v !== e.target.value) e.target.value = v; update(); });
 $('from').addEventListener('input', update);
+// example notes cycle through the empty field; [+] (or enter) on an empty field adds the one showing
+const EXAMPLES = ['i <3 u', 'happy birthday', 'thinking of you', 'you make me smile', 'miss you already', 'happy anniversary',
+  'proud of you', 'just because', 'get well soon', "you're my favorite", 'love you more', "can't wait to see you",
+  'thank you for everything', 'you deserve flowers', 'congrats!!', 'sorry i was a goof', 'hi :)', 'you light up my day'];
+let exampleAt = 0;
+function showExample() {
+  if (state.notes.length >= MAX_NOTES) return void ($('msg').placeholder = `${MAX_NOTES} notes max`);
+  const left = EXAMPLES.filter(x => !state.notes.includes(x));
+  $('msg').placeholder = left[exampleAt % left.length];
+}
+setInterval(() => { exampleAt++; showExample(); }, 2600);
 function addNote() {
-  const v = $('msg').value.trim();
+  const v = $('msg').value.trim() || (state.notes.length < MAX_NOTES ? $('msg').placeholder : '');
   if (!v || state.notes.length >= MAX_NOTES) return;
   state.notes.push(v); $('msg').value = ''; update();
 }
@@ -245,7 +254,8 @@ function update() {
     li.append(sp, x); $('notes').append(li);
   });
   $('msg').disabled = state.notes.length >= MAX_NOTES;
-  $('msg').placeholder = state.notes.length >= MAX_NOTES ? `${MAX_NOTES} notes max` : 'happy birthday';
+  showExample();
+  saveDraft();
   // what's in it so far
   const names = state.picks.map(k => BY_KEY[k].name + (k === state.fav ? ' <span style="color:#ffd6dc">&lt;3</span>' : '')).join(', ');
   const notes = state.notes.length ? ` · ${state.notes.length} note${state.notes.length > 1 ? 's' : ''} added` : '';
@@ -261,10 +271,9 @@ function update() {
     }, 350);
   }
 }
-// full-screen preview: the real thing, blooming, with the note typing
-$('mini').onclick = () => {
-  if (!state.picks.length) return; const f = document.createElement('iframe'); f.title = 'Preview'; f.src = link(); $('full').prepend(f); $('full').classList.add('open'); };
-$('close').onclick = () => { $('full').classList.remove('open'); $('full').querySelector('iframe')?.remove(); };
+// full preview: the real bouquet page (taps work there, unlike in a frame on iPhone), with a
+// [ < keep editing ] button back. The draft is saved, so coming back restores everything.
+$('mini').onclick = () => { if (state.picks.length) { saveDraft(); location.href = link('&edit'); } };
 // ---- checkout: Apple Pay / Google Pay first, card below, or a redeem code ----
 const order = () => ({ name: $('to').value.trim(), from: $('from').value.trim(), f: state.picks.map(k => k + (k === state.fav ? '*' : '')).join('.'), msgs: state.notes });
 const api = (path, body) => fetch('api/' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
@@ -274,7 +283,7 @@ const err = t => { $('payerr').textContent = t || ''; };
 function finished(id) {
   const url = `${location.origin}/flowers/${id}`;
   $('url').href = url; $('url').textContent = url.replace(/^https?:\/\//, '');
-  $('buy').hidden = true; $('done').hidden = false;
+  $('buy').hidden = true; $('done').hidden = false; clearDraft();
   if (sentTo) $('sent').textContent = `a copy of the link is on its way to ${sentTo}.`;
   // draw its home-screen icon now, so it's ready before they ever open it
   document.body.insertAdjacentHTML('beforeend', `<iframe aria-hidden="true" tabindex="-1" src="${id}?icon&bt=20&cols=40" style="position:fixed;left:-999px;top:0;width:180px;height:180px;border:0"></iframe>`);
@@ -338,6 +347,15 @@ $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('redeem').
 $('paydone').onclick = () => $('pay').classList.remove('open');
 $('copy').onclick = async () => { try { await navigator.clipboard.writeText($('url').href); $('copy').textContent = '[ copied ✓ ]'; } catch (e) { prompt('copy this link', $('url').href); } };
 $('share').onclick = () => navigator.share({ title: `Flowers for ${$('to').value.trim()}`, url: $('url').href }).catch(() => {});
+try {   // back from the preview (or a reload): pick up where they left off
+  const d = JSON.parse(sessionStorage.getItem(DRAFT) || 'null');
+  if (d) {
+    $('to').value = d.to || ''; $('from').value = d.from || '';
+    state.picks = (d.picks || []).filter(k => BY_KEY[k]).slice(0, 5);
+    state.fav = state.picks.includes(d.fav) ? d.fav : null;
+    state.notes = (d.notes || []).filter(n => typeof n === 'string').slice(0, MAX_NOTES);
+  }
+} catch (e) {}
 update();
 </script>
 </html>
