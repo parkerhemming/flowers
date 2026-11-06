@@ -58,6 +58,23 @@
   #full{position:fixed;inset:0;z-index:5;background:var(--bg);display:none}
   #full.open{display:block}
   #full iframe{border:0;width:100%;height:100%}
+  /* checkout: a sheet over the page, same frame-and-prompt look */
+  #pay{position:fixed;inset:0;z-index:6;background:rgba(11,10,13,.97);display:none;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #pay.open{display:block}
+  #pay .sheet{max-width:440px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+  #pay .top{display:flex;justify-content:space-between;align-items:center}
+  #pay .top button{color:var(--dim);min-height:44px;min-width:44px;text-align:right}
+  #pay h3{margin:0;font-size:15px;color:var(--pink);font-weight:600}
+  #pay .what{color:var(--dim);margin:2px 0 16px;font-size:13px}
+  #pay .or{display:flex;align-items:center;gap:1ch;color:#5a5258;font-size:12px;margin:16px 0 12px}
+  #pay .or::before,#pay .or::after{content:'';flex:1;border-top:1px dashed var(--line)}
+  #pay .big{width:100%;margin-top:14px}
+  #pay [hidden]{display:none!important}
+  #pay .err{color:#ff8a9a;font-size:12px;min-height:1.5em;margin:8px 0 0}
+  #pay .codebox{margin-top:22px}
+  #done{text-align:center;padding-top:30px}
+  #done .url{display:block;margin:14px 0 18px;color:var(--pink);font-size:17px;word-break:break-all;text-decoration:none}
+  #done .row{justify-content:center}
   #full .close{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:var(--pink);min-height:44px;padding:0 12px;font-size:13px;background:rgba(11,10,13,.8)}
   @media (min-width:900px){
     main{max-width:1180px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;padding-bottom:60px}
@@ -99,7 +116,34 @@
     </div>
   </div>
 </main>
+<div id="pay" role="dialog" aria-label="Checkout">
+  <div class="sheet">
+    <div id="buy">
+      <div class="top"><h3>&gt; checkout</h3><button id="paydone" aria-label="Close checkout">[x]</button></div>
+      <p class="what" id="what"></p>
+      <div id="wallets"></div>
+      <div class="or" id="ortxt">or pay with card</div>
+      <div id="card"></div>
+      <button class="big go" id="paybtn" hidden>[ pay 99¢ ]</button>
+      <p class="err" id="payerr"></p>
+      <div class="codebox">
+        <div class="prompt"><label for="code">&gt; code:</label><input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" placeholder="have a code?"><button id="redeem">[ use ]</button></div>
+      </div>
+    </div>
+    <div id="done" hidden>
+      <h3>your bouquet is ready <span style="color:var(--pink)">&lt;3</span></h3>
+      <a class="url" id="url" target="_blank" rel="noopener"></a>
+      <div class="row">
+        <button class="big" id="copy">[ copy link ]</button>
+        <button class="big go" id="share">[ send it ]</button>
+      </div>
+      <p class="what" style="margin-top:16px">this link is theirs to keep.</p>
+      <button class="what" style="min-height:44px" onclick="location.reload()">[ make another ]</button>
+    </div>
+  </div>
+</div>
 <div id="full"><button class="close" id="close">[ x close ]</button></div>
+<script src="https://js.stripe.com/v3/"></script>
 <script src="flowers.js?v=1"></script>
 <script>
 // The create page: who it's for, which flowers (each card is the real ASCII renderer), notes.
@@ -183,8 +227,70 @@ function update() {
 // full-screen preview: the real thing, blooming, with the note typing
 $('look').onclick = () => { const f = document.createElement('iframe'); f.title = 'Preview'; f.src = link(); $('full').prepend(f); $('full').classList.add('open'); };
 $('close').onclick = () => { $('full').classList.remove('open'); $('full').querySelector('iframe')?.remove(); };
-// ponytail: no payment yet; this goes straight to the bouquet until the Stripe step lands
-$('make').onclick = () => { location.href = link(); };
+// ---- checkout: Apple Pay / Google Pay first, card below, or a redeem code ----
+const order = () => ({ name: $('to').value.trim(), from: $('from').value.trim(), f: state.picks.map(k => k + (k === state.fav ? '*' : '')).join('.'), msgs: state.notes });
+const api = (path, body) => fetch('api/' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
+  .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'something went wrong, try again'); return j; });
+let stripe = null, elements = null, current = null;   // current: { id, clientSecret } for this checkout
+const err = t => { $('payerr').textContent = t || ''; };
+function finished(id) {
+  const url = `${location.origin}/flowers/${id}`;
+  $('url').href = url; $('url').textContent = url.replace(/^https?:\/\//, '');
+  $('buy').hidden = true; $('done').hidden = false;
+  $('share').hidden = !navigator.share;
+}
+// the webhook usually beats us here; the API also asks Stripe directly, so a short wait is plenty
+async function waitPaid(id) {
+  for (let i = 0; i < 20; i++) { if ((await api('b/' + id).catch(() => ({}))).status === 'paid') return finished(id); await new Promise(r => setTimeout(r, 1000)); }
+  err("payment went through but the link is slow to appear. refresh in a minute, or email parker@hemm.ing.");
+}
+async function confirm() {
+  err('');
+  const { error } = await stripe.confirmPayment({ elements, clientSecret: current.clientSecret, redirect: 'if_required',
+    confirmParams: { return_url: `${location.origin}/flowers/${current.id}` } });
+  if (error) return err(error.message);
+  waitPaid(current.id);
+}
+$('make').onclick = async () => {
+  $('what').textContent = `a bouquet for ${$('to').value.trim().toLowerCase()} · 99¢`;
+  $('buy').hidden = false; $('done').hidden = true; err(''); $('pay').classList.add('open');
+  $('wallets').innerHTML = $('card').innerHTML = ''; $('paybtn').hidden = true; $('ortxt').hidden = true;
+  try {
+    const cfg = await api('config');
+    if (!cfg.publishableKey || !window.Stripe) throw new Error("card payments aren't switched on yet. a code still works.");
+    current = await api('create', order());
+    stripe = stripe || Stripe(cfg.publishableKey);
+    elements = stripe.elements({ clientSecret: current.clientSecret,
+      fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap' }],
+      appearance: { theme: 'night', variables: { colorPrimary: '#ffd6dc', colorBackground: '#0b0a0d', colorText: '#e7dde1', colorDanger: '#ff8a9a',
+        fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace', borderRadius: '3px', spacingUnit: '3px' },
+        rules: { '.Input': { border: '1px dashed rgba(255,214,220,.28)', boxShadow: 'none' }, '.Input:focus': { border: '1px solid #ffd6dc', boxShadow: 'none' }, '.Tab': { border: '1px dashed rgba(255,214,220,.28)' } } } });
+    // Apple Pay first (Google Pay where Apple Pay isn't there); hidden on devices with neither
+    const express = elements.create('expressCheckout', { paymentMethodOrder: ['apple_pay', 'google_pay'], buttonHeight: 48,
+      buttonType: { applePay: 'plain', googlePay: 'plain' }, buttonTheme: { applePay: 'white-outline', googlePay: 'white' } });
+    express.on('ready', e => { $('ortxt').hidden = !e.availablePaymentMethods; });
+    express.on('confirm', confirm);
+    express.mount('#wallets');
+    elements.create('payment', { layout: 'tabs', wallets: { applePay: 'never', googlePay: 'never' } }).mount('#card');
+    $('paybtn').hidden = false;
+  } catch (e) { err(e.message); }
+};
+$('paybtn').onclick = async () => {
+  $('paybtn').disabled = true;
+  const { error } = await elements.submit();
+  if (error) err(error.message); else await confirm();
+  $('paybtn').disabled = false;
+};
+$('redeem').onclick = async () => {
+  if (!$('code').value.trim()) return err('type a code first');
+  err('');
+  try { const r = await api('create', { ...order(), code: $('code').value }); finished(r.id); }
+  catch (e) { err(e.message); }
+};
+$('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('redeem').click(); });
+$('paydone').onclick = () => $('pay').classList.remove('open');
+$('copy').onclick = async () => { try { await navigator.clipboard.writeText($('url').href); $('copy').textContent = '[ copied ✓ ]'; } catch (e) { prompt('copy this link', $('url').href); } };
+$('share').onclick = () => navigator.share({ title: `Flowers for ${$('to').value.trim()}`, url: $('url').href }).catch(() => {});
 update();
 </script>
 </html>

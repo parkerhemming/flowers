@@ -1,0 +1,13 @@
+[Unit]
+Description=flowers API (hemm.ing/flowers/api)
+After=network.target
+
+[Service]
+User=flowers
+EnvironmentFile=/etc/flowers.env
+ExecStart=/usr/bin/python3 /opt/flowers/server.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -101,7 +101,18 @@
 // Flowers are drawn as shaded vector shapes to a hidden canvas each frame, then
 // every cell of a dense monospace grid is sampled into a glyph + colour.
 // Debug: ?bt=<seconds> freezes the bloom, ?m=0..1 freezes the morph, ?cols=N sets density.
-const q = new URLSearchParams(location.search);
+// A short link (hemm.ing/flowers/k7x2p9) loads its saved bouquet first; everything below
+// reads it exactly like a long ?name=&f= link. Synchronous on purpose: it's tiny, and the
+// whole scene is built from it on the next line.
+const q = (() => {
+  const p = new URLSearchParams(location.search), id = location.pathname.match(/\/([a-hjkmnp-z2-9]{6})$/);
+  if (!id) return p;
+  let b = null;
+  try { const r = new XMLHttpRequest(); r.open('GET', 'api/b/' + id[1], false); r.send(); if (r.status === 200) b = JSON.parse(r.responseText); } catch (e) {}
+  if (!b || b.status !== 'paid') { location.replace('./'); throw new Error('no such bouquet'); }   // unknown or unpaid: off to make one
+  p.set('name', b.name); if (b.from) p.set('from', b.from); p.set('f', b.f); b.msgs.forEach(m => p.append('msg', m));
+  return p;
+})();
 if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) document.body.classList.add('app');
 const c = document.getElementById('c'), x = c.getContext('2d');
 const S = document.createElement('canvas'); s = S.getContext('2d', { willReadFrequently: true });
