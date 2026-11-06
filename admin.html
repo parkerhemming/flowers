@@ -74,7 +74,8 @@
     <div class="tools"><label><input type="checkbox" id="unpaid"> show unpaid checkouts</label></div>
     <div id="list"></div>
 
-    <h2><span class="grow">free codes</span><button id="make1">[ + 1 ]</button><button id="make5">[ + 5 ]</button></h2>
+    <h2><span class="grow">gift links</span><button id="make1">[ + 1 ]</button><button id="make5">[ + 5 ]</button></h2>
+    <p class="tools" style="margin:-4px 0 6px">one-time links: whoever opens one makes a bouquet for free. new ones are copied for you.</p>
     <div id="codes"></div>
   </div>
 </main>
@@ -114,8 +115,8 @@ function render() {
   const stats = [
     [sold.length, 'paid bouquets'],
     ['$' + (sold.length * data.price / 100).toFixed(2), 'revenue (before stripe fees)'],
-    [paid.length - sold.length, 'free, from codes'],
-    [data.codes.filter(c => !c.used_by).length, 'unused codes'],
+    [paid.length - sold.length, 'free, from gift links'],
+    [data.codes.filter(c => !c.used_by).length, 'unused gift links'],
     [paid.filter(b => b.mailed).length, 'emails sent'],
     [all.length - paid.length, 'unpaid checkouts'],
   ];
@@ -145,11 +146,12 @@ function render() {
       </div></div>`;
   }).join('') : `<div class="empty">${q ? 'nothing matches.' : 'no bouquets yet.'}</div>`;
 
+  const giftUrl = c => `https://hemm.ing/flowers/?gift=${c.code}`;
   $('codes').innerHTML = data.codes.length ? data.codes.map(c => `<div class="c">
       <code>${esc(c.code)}</code>
       <span class="meta">${c.used_by ? `used ${when(c.used)} → <a href="https://hemm.ing/flowers/${esc(c.used_by)}" target="_blank" rel="noopener">${esc(c.used_by)}</a>` : `unused · made ${when(c.created)}`}</span>
-      ${c.used_by ? '' : `<button data-copy="${esc(c.code)}">[ copy ]</button>`}
-    </div>`).join('') : '<div class="empty">no codes yet. make some to give friends a free bouquet.</div>';
+      ${c.used_by ? '' : `<button data-copy="${esc(giftUrl(c))}">[ copy link ]</button>`}
+    </div>`).join('') : '<div class="empty">no gift links yet. make one to give a friend a free bouquet.</div>';
 }
 
 document.addEventListener('click', async e => {
@@ -163,7 +165,10 @@ document.addEventListener('click', async e => {
   }
 });
 for (const [id, n] of [['make1', 1], ['make5', 5]]) $(id).onclick = async () => {
-  try { const r = await api('codes', { n }); await load(); copy(r.codes.join('\n')); toast(n === 1 ? 'made + copied ' + r.codes[0] : `made ${n} codes + copied`); } catch (e) { toast(e.message); }
+  try {
+    const r = await api('codes', { n }), links = r.codes.map(c => `https://hemm.ing/flowers/?gift=${c}`);
+    await load(); copy(links.join('\n')); toast(n === 1 ? 'gift link made + copied' : `${n} gift links made + copied`);
+  } catch (e) { toast(e.message); }
 };
 key ? load() : lock();
 </script>
