@@ -540,7 +540,7 @@ function drawStem(o, hx, hy, thin = 0, g = 1) {
   grad.addColorStop(.55, shade(o.col, back));
   grad.addColorStop(.82, shade(o.col, back - .4));     // packed together at the tie: darkest
   grad.addColorStop(1, shade(o.col, back - .15));
-  s.globalAlpha = 1 - .55 * thin; s.strokeStyle = grad; s.lineWidth = o.w * (1 - .45 * thin); s.stroke(); s.globalAlpha = 1;
+  s.globalAlpha = 1 - (.55 + .3 * (1 - NS)) * thin; s.strokeStyle = grad; s.lineWidth = o.w * (1 - (.45 + .25 * (1 - NS)) * thin); s.stroke(); s.globalAlpha = 1;
 }
 
 // ---- bloom timings (seconds after load) ----
@@ -608,6 +608,19 @@ function scene(M, T = 1e3, wind = 1) {
   fernAt(ferns[0], 0, [-24 + 8 * E, -64 + 16 * E], [-47 + 26 * E, -103 + 50 * E], 0);
   fernAt(ferns[1], 1, [38 - 18 * E, -58 + 6 * E], [55 - 28 * E, -86 + 34 * E], 0);
   fernAt(ferns[2], 2, [6 + 4 * E, -84 + 30 * E], [-9 + 12 * E, -122 + 62 * E], .5);
+  // the letters themselves grow in as a thin vine under the flowers, so every letter
+  // reads as one unbroken line however long the name is
+  const vine = smooth((E - .35) / .65);
+  if (vine > 0) items.push([.3, () => {
+    s.lineCap = s.lineJoin = 'round'; s.lineWidth = .7 + .5 * NS; s.strokeStyle = '#5fae4c'; s.globalAlpha = vine;
+    for (const st of STROKES) {
+      const segs = st.slice(1).map((p, i) => Math.hypot(p[0] - st[i][0], p[1] - st[i][1])), tot = segs.reduce((a, b) => a + b);
+      let left = tot * vine; s.beginPath(); s.moveTo(...st[0]);
+      for (let i = 1; i < st.length && left > 0; i++) { const f = Math.min(1, left / segs[i - 1]); s.lineTo(st[i - 1][0] + (st[i][0] - st[i - 1][0]) * f, st[i - 1][1] + (st[i][1] - st[i - 1][1]) * f); left -= segs[i - 1]; }
+      s.stroke();
+    }
+    s.globalAlpha = 1; s.lineCap = s.lineJoin = 'butt';
+  }]);
 
   for (const u of units) items.push([u.z, () => {
     const nod = u.th * 2.5;                            // heads nod a little more than their stems lean
@@ -615,7 +628,7 @@ function scene(M, T = 1e3, wind = 1) {
       drawStem(u, u.x, u.y, u.e, grow(u.g0, u.gD));
       if (Tb < u.b0) return;
       const breathe = 1 + .012 * Math.sin(T * 1.1 + u.phase);
-      const rr = (u.r + ((isDot(u) ? 6.5 : 4.6) * HS - u.r) * u.e) * breathe;
+      const rr = (u.r + ((isDot(u) ? 6.5 * NS : 4.6 * HS) - u.r) * u.e) * breathe;   // i/j dots scale exactly with the letters
       P = u.bl; rose(u.x, u.y, rr, u.rot, u.tilt * (1 - .7 * u.e) + nod, u.sq + (.95 - u.sq) * u.e, u.open + (1 - u.open) * .5 * u.e); P = 1;
       return;
     }
@@ -710,7 +723,7 @@ let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.g
 function setup() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(3, devicePixelRatio || 1);   // full res: a 2x canvas on a 3x phone looks blurry
   c.style.width = W + 'px'; c.style.height = H + 'px';
-  const cols = +q.get('cols') || Math.round(Math.max(90, Math.min(250, W / 5.6)));
+  const cols = +q.get('cols') || Math.round(Math.max(90 + 8 * Math.max(0, NAME.replace(/ /g, '').length - 4), Math.min(250, W / 5.6)));   // long names get a finer grid on phones so every letter stays readable
   const cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
   c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); x.setTransform(1, 0, 0, 1, 0, 0);   // device pixels, no scaling
   // WebKit (Safari, iOS and Mac) builds the canvas's display layer at the size it had when
