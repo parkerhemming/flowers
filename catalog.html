@@ -733,8 +733,11 @@ class Tile {
 }
 
 const host = document.getElementById('grid'), sec = t => host.insertAdjacentHTML('beforeend', `<h2 class="sec">${t}</h2>`);
-sec('original');
-const tiles = CATALOG.map((d, i) => (i === 8 && sec('additional'), new Tile(d, i, host)));
+// florist terms: focal flowers are the stars; filler + greenery are the accents that go around them
+const FILLER = ['lavender', 'dok rak', 'daisies', "baby's breath", 'eucalyptus'];
+const focal = CATALOG.filter(d => !FILLER.includes(d.name)), filler = CATALOG.filter(d => FILLER.includes(d.name));
+sec('step 1 · focal flowers <span class="mean">the main flowers</span>');
+const tiles = [...focal, ...filler].map((d, i) => (i === focal.length && sec('step 2 · filler &amp; greenery <span class="mean">the accents around them</span>'), new Tile(d, i, host)));
 const visible = new Set(), io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)));
 tiles.forEach(t => io.observe(t.c));
 addEventListener('resize', () => tiles.forEach(t => t.size()));
