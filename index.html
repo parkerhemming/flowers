@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext x='1' y='13' font-family='monospace' font-size='15' fill='%23e0314b'%3E@%3C/text%3E%3C/svg%3E">
 <style>
-  :root{--bg:#0b0a0d;--ink:#e7dde1;--dim:#9d9096;--pink:#ffd6dc;--line:rgba(255,214,220,.28)}
+  :root{--bg:#0b0a0d;--ink:#e7dde1;--dim:#9d9096;--pink:#ffd6dc;--line:rgba(255,214,220,.28);--red:#ff5c6c}
   html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;-webkit-tap-highlight-color:transparent}
   main{max-width:760px;margin:0 auto;padding:22px 14px 190px}
   h1{font-size:16px;font-weight:600;color:var(--pink);margin:0}
@@ -40,7 +40,7 @@
   .notes{list-style:none;margin:8px 0 0;padding:0}
   .notes li{display:flex;align-items:center;border-bottom:1px dashed var(--line);min-height:44px}
   .notes li span{flex:1;overflow-wrap:anywhere}
-  .notes li button{min-width:44px;min-height:44px;color:var(--dim)}
+  .notes li button{min-width:44px;min-height:44px;color:var(--red);text-shadow:0 0 10px rgba(255,92,108,.45)}
   .prompt button{color:var(--pink);min-height:44px;min-width:44px}
   /* the live bouquet: a bar pinned to the bottom on phones, a column on wide screens */
   #dock{position:fixed;left:0;right:0;bottom:0;background:rgba(11,10,13,.96);border-top:1px dashed var(--line);
@@ -63,7 +63,7 @@
   #pay.open{display:block}
   #pay .sheet{max-width:440px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
   #pay .top{display:flex;justify-content:space-between;align-items:center}
-  #pay .top button{color:var(--dim);min-height:44px;min-width:44px;text-align:right}
+  #pay .top button{color:var(--red);text-shadow:0 0 10px rgba(255,92,108,.45);min-height:44px;min-width:44px;text-align:right}
   #pay h3{margin:0;font-size:15px;color:var(--pink);font-weight:600}
   #pay .what{color:var(--dim);margin:2px 0 16px;font-size:13px}
   #pay .or{display:flex;align-items:center;gap:1ch;color:#5a5258;font-size:12px;margin:16px 0 12px}
@@ -75,7 +75,7 @@
   #done{text-align:center;padding-top:30px}
   #done .url{display:block;margin:14px 0 18px;color:var(--pink);font-size:17px;word-break:break-all;text-decoration:none}
   #done .row{justify-content:center}
-  #full .close{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:var(--pink);min-height:44px;padding:0 12px;font-size:13px;background:rgba(11,10,13,.8)}
+  #full .close{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:var(--red);text-shadow:0 0 10px rgba(255,92,108,.45);min-height:44px;padding:0 12px;font-size:13px;background:rgba(11,10,13,.8)}
   @media (min-width:900px){
     main{max-width:1180px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;padding-bottom:60px}
     #dock{position:sticky;top:20px;align-self:start;flex-direction:column;border:1px dashed var(--line);border-radius:3px;padding:12px;grid-column:2;grid-row:1}
