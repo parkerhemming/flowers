@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext x='1' y='13' font-family='monospace' font-size='15' fill='%23e0314b'%3E@%3C/text%3E%3C/svg%3E">
 <style>
   :root{--bg:#0b0a0d;--ink:#e7dde1;--dim:#9d9096;--faint:#5a5258;--pink:#ffd6dc;--line:rgba(255,214,220,.28)}
+  html{touch-action:manipulation}   /* no double-tap zoom (pinch zoom still works) */
   html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
   main{max-width:640px;margin:0 auto;padding:calc(22px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom))}
   a{color:var(--pink);text-decoration:none;border-bottom:1px dashed var(--line)}
