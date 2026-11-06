@@ -196,7 +196,7 @@ function cluster(p, cx, cy, z) {                          // dok rak umbel or a 
 }
 // somewhere in the dome not already covered (best of a few random tries)
 function gap(rx, ry) {
-  let best = null, bestD = -1;
+  let best = null, bestD = -Infinity;                 // least-crowded spot, even when the dome is already full
   for (let k = 0; k < 24; k++) {
     const a = rnd2() * TAU, d = Math.sqrt(rnd2()), x = CX + Math.cos(a) * d * rx, y = CY + Math.sin(a) * d * ry;
     const free = Math.min(99, ...heads.map(([hx, hy, r]) => Math.hypot(x - hx, y - hy) - r * .8));
@@ -332,7 +332,8 @@ const STROKES = [], DOTS = [];
   var HS = Math.min(1, Math.sqrt(NS) * 1.15);          // heads shrink much less than the letters, so long names stay full
 }
 // the biggest roses become the dots of i and j
-const DOT_UNITS = units.filter(u => u.type === 'head' && !u.spike).sort((a, b) => b.r - a.r).slice(0, DOTS.length);
+const DOT_UNITS = [...units.filter(u => u.type === 'head' && !u.spike).sort((a, b) => b.r - a.r),
+                   ...units.filter(u => u.type === 'head' && u.spike)].slice(0, DOTS.length);   // sprigs only if there's nothing round
 const isDot = u => DOT_UNITS.includes(u);
 (function assignTargets() {
   const movers = units.filter(u => !isDot(u));
