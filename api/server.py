@@ -4,12 +4,13 @@ or a single-use redeem code, and serves them back for short links (hemm.ing/flow
 
 Standard library only. Keys come from the environment (/etc/flowers.env), never the repo:
   STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
+  MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MAIL_FROM   (confirmation email via Office 365 / Microsoft Graph)
 
   python3 server.py                 run the API on 127.0.0.1:8790
   python3 server.py codes 5         print 5 new redeem codes
   python3 server.py selftest        quick checks, no network
 """
-import base64, hashlib, hmac, json, os, re, secrets, sqlite3, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
+import base64, hashlib, hmac, html, json, threading, os, re, secrets, sqlite3, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DB = os.environ.get('FLOWERS_DB', '/var/lib/flowers/flowers.db')
@@ -28,6 +29,11 @@ def db():
     c = sqlite3.connect(DB, timeout=10, isolation_level=None)
     c.execute('create table if not exists bouquets (id text primary key, data text, status text, pi text, via text, created int)')
     c.execute('create table if not exists codes (code text primary key, used_by text, created int, used int)')
+    for col in ('email text', 'mailed int'):   # added later; harmless if already there
+        try:
+            c.execute('alter table bouquets add column ' + col)
+        except sqlite3.OperationalError:
+            pass
     return c
 
 
@@ -79,6 +85,58 @@ def verify_webhook(payload, header, secret, now=None, tolerance=300):
     return any(hmac.compare_digest(want, s) for s in sigs)
 
 
+EMAIL_RE = re.compile(r'^[^@\s<>"]{1,64}@[^@\s<>"]{1,180}\.[A-Za-z]{2,24}$')
+
+
+def paid(c, i):
+    """Mark a bouquet paid and send the buyer their link, exactly once."""
+    c.execute("update bouquets set status='paid' where id=?", (i,))
+    if c.execute("update bouquets set mailed=1 where id=? and status='paid' and mailed is null and email is not null", (i,)).rowcount:
+        email, data = c.execute('select email, data from bouquets where id=?', (i,)).fetchone()
+        threading.Thread(target=mail_link, args=(i, email, json.loads(data)), daemon=True).start()
+
+
+def email_html(i, d):
+    url = f'https://hemm.ing/flowers/{i}'
+    name, frm = html.escape(d['name'].lower()), html.escape(d.get('from', '').lower())
+    mono = "font-family:'JetBrains Mono',Menlo,Consolas,'Courier New',monospace"
+    return f"""<!doctype html><html><body style="margin:0;padding:0;background:#0b0a0d">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0a0d"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;{mono};color:#e7dde1;font-size:14px;line-height:1.55">
+<tr><td style="border:1px dashed #5a4a50;border-radius:3px;padding:22px 20px;background:#0b0a0d">
+<div style="color:#ffd6dc;font-weight:bold;font-size:15px">&gt; flowers for {name}{f', from {frm}' if frm else ''} <span style="color:#ffd6dc">&lt;3</span></div>
+<p style="color:#9d9096;margin:6px 0 18px">your bouquet is ready. it blooms, sways in the wind, and spells their name when they tap it.</p>
+<img src="{url.replace('/flowers/', '/flowers/api/icon/')}" width="96" height="96" alt="" style="display:block;border:1px dashed #5a4a50;border-radius:3px;margin:0 0 18px">
+<a href="{url}" style="color:#ffd6dc;font-size:16px;text-decoration:none;{mono}">hemm.ing/flowers/{i}</a>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 4px"><tr><td style="border:1px solid #ffd6dc;border-radius:3px">
+<a href="{url}" style="display:inline-block;padding:10px 18px;color:#ffd6dc;text-decoration:none;{mono};font-size:13px">[ open the bouquet ]</a></td></tr></table>
+<p style="color:#9d9096;font-size:12px;margin:18px 0 0">send that link to {name}. keep this email: it's your copy if you ever lose it.</p>
+</td></tr>
+<tr><td style="color:#5a5258;font-size:11px;padding:12px 4px;text-align:center;{mono}">made with <a href="https://hemm.ing/flowers/" style="color:#9d9096;text-decoration:none">hemm.ing/flowers</a></td></tr>
+</table></td></tr></table></body></html>"""
+
+
+def mail_link(i, to, d):
+    """Send through Office 365 (Microsoft Graph, app-only). On failure, leave it unsent so a later check retries."""
+    env = os.environ
+    try:
+        if not all(env.get(k) for k in ('MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MAIL_FROM')):
+            raise RuntimeError('email not configured')
+        tok = json.load(urllib.request.urlopen(urllib.request.Request(
+            f"https://login.microsoftonline.com/{env['MS_TENANT_ID']}/oauth2/v2.0/token",
+            data=urllib.parse.urlencode({'client_id': env['MS_CLIENT_ID'], 'client_secret': env['MS_CLIENT_SECRET'],
+                                         'scope': 'https://graph.microsoft.com/.default', 'grant_type': 'client_credentials'}).encode()), timeout=20))['access_token']
+        msg = {'message': {'subject': f"your flowers for {d['name']} <3", 'body': {'contentType': 'HTML', 'content': email_html(i, d)},
+                           'toRecipients': [{'emailAddress': {'address': to}}]}, 'saveToSentItems': True}
+        urllib.request.urlopen(urllib.request.Request(f"https://graph.microsoft.com/v1.0/users/{urllib.parse.quote(env['MAIL_FROM'])}/sendMail",
+                                                      data=json.dumps(msg).encode(), method='POST',
+                                                      headers={'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json'}), timeout=20)
+        sys.stderr.write(f'mailed {i}\n')
+    except Exception as e:   # never take the API down over an email
+        sys.stderr.write(f'mail {i} failed: {e}\n')
+        db().execute('update bouquets set mailed=null where id=?', (i,))
+
+
 class API(BaseHTTPRequestHandler):
     def send(self, code, obj):
         body = json.dumps(obj).encode()
@@ -119,10 +177,12 @@ class API(BaseHTTPRequestHandler):
             # the webhook can lag a second or two behind the buyer; ask Stripe directly
             try:
                 if stripe('GET', 'payment_intents/' + pi).get('status') == 'succeeded':
-                    c.execute("update bouquets set status='paid' where id=?", (m.group(1),))
+                    paid(c, m.group(1))
                     status = 'paid'
             except (urllib.error.URLError, KeyError):
                 pass
+        if status == 'paid':
+            paid(c, m.group(1))   # retries an email that failed earlier (no-op once sent)
         return self.send(200, {'status': status, 'icon': os.path.exists(icon_path(m.group(1))), **(json.loads(data) if status == 'paid' else {})})
 
     def do_POST(self):
@@ -134,7 +194,10 @@ class API(BaseHTTPRequestHandler):
                 return self.send(400, {'error': 'bad signature'})
             ev = json.loads(payload)
             if ev.get('type') == 'payment_intent.succeeded':
-                db().execute("update bouquets set status='paid' where pi=?", (ev['data']['object']['id'],))
+                c = db()
+                row = c.execute('select id from bouquets where pi=?', (ev['data']['object']['id'],)).fetchone()
+                if row:
+                    paid(c, row[0])
             return self.send(200, {'ok': True})
         m = re.match(r'^/icon/([a-z0-9]{6})$', path)
         if m:   # set once, by the first browser to show the bouquet: a paid bouquet, a PNG, small
@@ -146,6 +209,19 @@ class API(BaseHTTPRequestHandler):
             with open(icon_path(i), 'xb') as fh:
                 fh.write(png)
             return self.send(200, {'ok': True})
+        m = re.match(r'^/email/([a-z0-9]{6})$', path)
+        if m:
+            try:
+                email = str(json.loads(self.read() or b'{}').get('email', '')).strip()
+            except json.JSONDecodeError:
+                email = ''
+            c = db()
+            if not EMAIL_RE.match(email) or not ID_RE.match(m.group(1)) or not c.execute(
+                    'update bouquets set email=? where id=? and mailed is null', (email, m.group(1))).rowcount:
+                return self.send(400, {'error': "that email doesn't look right"})
+            if c.execute('select status from bouquets where id=?', (m.group(1),)).fetchone()[0] == 'paid':
+                paid(c, m.group(1))
+            return self.send(200, {'ok': True})
         if path != '/create':
             return self.send(404, {'error': 'not found'})
         try:
@@ -156,12 +232,17 @@ class API(BaseHTTPRequestHandler):
         c = db()
         i = new_id(c)
         code = re.sub(r'[^A-Z0-9]', '', str(body.get('code', '')).upper())
+        email = str(body.get('email', '')).strip()
+        email = email if EMAIL_RE.match(email) else ''
         if code:   # a friend's free bouquet: each code works exactly once
             c.execute('begin immediate')
             used = c.execute('update codes set used_by=?, used=? where code=? and used_by is null', (i, int(time.time()), code)).rowcount
             if used:
-                c.execute('insert into bouquets values (?,?,?,?,?,?)', (i, json.dumps(data), 'paid', None, 'code:' + code, int(time.time())))
+                c.execute('insert into bouquets (id, data, status, pi, via, created, email) values (?,?,?,?,?,?,?)',
+                          (i, json.dumps(data), 'pending', None, 'code:' + code, int(time.time()), email or None))
             c.execute('commit')
+            if used:
+                paid(c, i)
             return self.send(200, {'id': i}) if used else self.send(400, {'error': "that code doesn't work (or it's been used)"})
         if not os.environ.get('STRIPE_SECRET_KEY'):
             return self.send(503, {'error': "payments aren't switched on yet"})
@@ -171,7 +252,7 @@ class API(BaseHTTPRequestHandler):
                                                     'description': f'Flowers for {data["name"]}', 'metadata[bouquet]': i})
         except urllib.error.URLError:
             return self.send(502, {'error': "couldn't reach the payment provider, try again"})
-        c.execute('insert into bouquets values (?,?,?,?,?,?)', (i, json.dumps(data), 'pending', pi['id'], 'stripe', int(time.time())))
+        c.execute('insert into bouquets (id, data, status, pi, via, created) values (?,?,?,?,?,?)', (i, json.dumps(data), 'pending', pi['id'], 'stripe', int(time.time())))
         return self.send(200, {'id': i, 'clientSecret': pi['client_secret']})
 
     def log_message(self, fmt, *args):   # one line per request, no bodies
@@ -202,6 +283,9 @@ def selftest():
     assert not verify_webhook(b'{"x":1}', f't={t},v1={sig}', 'whsec')
     assert not verify_webhook(b'{}', f't={t - 999},v1={sig}', 'whsec')
     assert ID_RE.match('k7x2p9') and not ID_RE.match('k7x2p0')
+    assert EMAIL_RE.match('a.b+c@hemm.ing') and not EMAIL_RE.match('a@b') and not EMAIL_RE.match('a <x>@b.co')
+    page = email_html('k7x2p9', {'name': 'Sam', 'from': 'Al <b>', 'f': 'rose', 'msgs': []})
+    assert 'flowers for sam, from al &lt;b&gt;' in page and 'hemm.ing/flowers/api/icon/k7x2p9' in page
     print('ok')
 
 

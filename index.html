@@ -121,6 +121,8 @@
     <div id="buy">
       <div class="top"><h3>&gt; checkout</h3><button id="paydone" aria-label="Close checkout">[x]</button></div>
       <p class="what" id="what"></p>
+      <div class="prompt"><label for="email">&gt; email:</label><input id="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="where we send your link"></div>
+      <p class="what" style="margin:6px 0 14px;font-size:12px">we email you the link, so you always have it. apple pay / google pay fill this in.</p>
       <div id="wallets"></div>
       <div class="or" id="ortxt">or pay with card</div>
       <div id="card"></div>
@@ -137,7 +139,7 @@
         <button class="big" id="copy">[ copy link ]</button>
         <button class="big go" id="share">[ send it ]</button>
       </div>
-      <p class="what" style="margin-top:16px">this link is theirs to keep.</p>
+      <p class="what" style="margin-top:16px" id="sent">this link is theirs to keep.</p>
       <button class="what" style="min-height:44px" onclick="location.reload()">[ make another ]</button>
     </div>
   </div>
@@ -231,12 +233,13 @@ $('close').onclick = () => { $('full').classList.remove('open'); $('full').query
 const order = () => ({ name: $('to').value.trim(), from: $('from').value.trim(), f: state.picks.map(k => k + (k === state.fav ? '*' : '')).join('.'), msgs: state.notes });
 const api = (path, body) => fetch('api/' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
   .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'something went wrong, try again'); return j; });
-let stripe = null, elements = null, current = null;   // current: { id, clientSecret } for this checkout
+let stripe = null, elements = null, current = null, sentTo = '';   // current: { id, clientSecret } for this checkout
 const err = t => { $('payerr').textContent = t || ''; };
 function finished(id) {
   const url = `${location.origin}/flowers/${id}`;
   $('url').href = url; $('url').textContent = url.replace(/^https?:\/\//, '');
   $('buy').hidden = true; $('done').hidden = false;
+  if (sentTo) $('sent').textContent = `a copy of the link is on its way to ${sentTo}.`;
   // draw its home-screen icon now, so it's ready before they ever open it
   document.body.insertAdjacentHTML('beforeend', `<iframe aria-hidden="true" tabindex="-1" src="${id}?icon&bt=20&cols=40" style="position:fixed;left:-999px;top:0;width:180px;height:180px;border:0"></iframe>`);
   $('share').hidden = !navigator.share;
@@ -246,8 +249,13 @@ async function waitPaid(id) {
   for (let i = 0; i < 20; i++) { if ((await api('b/' + id).catch(() => ({}))).status === 'paid') return finished(id); await new Promise(r => setTimeout(r, 1000)); }
   err("payment went through but the link is slow to appear. refresh in a minute, or email parker@hemm.ing.");
 }
-async function confirm() {
+// the buyer's email goes to the server first, so the link can be emailed the moment payment lands
+async function confirm(walletEmail, ev) {
   err('');
+  const email = $('email').value.trim() || walletEmail || '';
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) { ev?.paymentFailed?.(); $('email').focus(); return err('add your email so we can send you the link'); }
+  try { await api('email/' + current.id, { email }); } catch (e) { ev?.paymentFailed?.(); return err(e.message); }
+  sentTo = email;
   const { error } = await stripe.confirmPayment({ elements, clientSecret: current.clientSecret, redirect: 'if_required',
     confirmParams: { return_url: `${location.origin}/flowers/${current.id}` } });
   if (error) return err(error.message);
@@ -268,10 +276,10 @@ $('make').onclick = async () => {
         fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace', borderRadius: '3px', spacingUnit: '3px' },
         rules: { '.Input': { border: '1px dashed rgba(255,214,220,.28)', boxShadow: 'none' }, '.Input:focus': { border: '1px solid #ffd6dc', boxShadow: 'none' }, '.Tab': { border: '1px dashed rgba(255,214,220,.28)' } } } });
     // Apple Pay first (Google Pay where Apple Pay isn't there); hidden on devices with neither
-    const express = elements.create('expressCheckout', { paymentMethodOrder: ['apple_pay', 'google_pay'], buttonHeight: 48,
+    const express = elements.create('expressCheckout', { paymentMethodOrder: ['apple_pay', 'google_pay'], buttonHeight: 48, emailRequired: true,
       buttonType: { applePay: 'plain', googlePay: 'plain' }, buttonTheme: { applePay: 'white-outline', googlePay: 'white' } });
     express.on('ready', e => { $('ortxt').hidden = !e.availablePaymentMethods; });
-    express.on('confirm', confirm);
+    express.on('confirm', e => confirm(e.billingDetails?.email, e));
     express.mount('#wallets');
     elements.create('payment', { layout: 'tabs', wallets: { applePay: 'never', googlePay: 'never' } }).mount('#card');
     $('paybtn').hidden = false;
@@ -286,7 +294,8 @@ $('paybtn').onclick = async () => {
 $('redeem').onclick = async () => {
   if (!$('code').value.trim()) return err('type a code first');
   err('');
-  try { const r = await api('create', { ...order(), code: $('code').value }); finished(r.id); }
+  sentTo = /@/.test($('email').value) ? $('email').value.trim() : '';
+  try { const r = await api('create', { ...order(), code: $('code').value, email: sentTo }); finished(r.id); }
   catch (e) { err(e.message); }
 };
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('redeem').click(); });
