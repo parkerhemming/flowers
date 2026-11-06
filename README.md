@@ -6,7 +6,7 @@ This repo runs two sites:
 
 | Branch | Site | What it is |
 |---|---|---|
-| `main` | **https://hemm.ing/flowers** | The generator: anyone can make a bouquet for someone for 99¢ |
+| `main` | **https://hemm.ing/flowers** | The generator: anyone can make a bouquet for someone for $0.99 |
 | `aria` | **https://flowers.hemm.ing** | The original bouquet made for Aria. Kept as it was; only changed on purpose |
 
 ## Making a bouquet
@@ -15,7 +15,7 @@ This repo runs two sites:
 2. **Step 1 · focal flowers.** Up to 3 main flowers, picked from live ASCII cards. A pink `<3` marks one as their favorite.
 3. **Step 2 · filler & greenery.** Up to 2 accents, such as baby's breath or eucalyptus.
 4. **Step 3 · little notes.** Up to 6 short messages, typed one by one under the flowers after "to: …, from: …".
-5. **Checkout.** 99¢: Apple Pay first, Google Pay where Apple Pay isn't available, then card. A redeem code makes it free.
+5. **Checkout.** $0.99: Apple Pay first, Google Pay where Apple Pay isn't available, then card. A redeem code makes it free.
 6. **The link.** The buyer gets a short link like `hemm.ing/flowers/k7x2p9`, plus a confirmation email with the same link.
 
 A live preview of the bouquet sits at the bottom of the screen on phones, and in a side column on desktop.

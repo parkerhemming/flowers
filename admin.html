@@ -126,7 +126,7 @@ function render() {
   $('list').innerHTML = rows.length ? rows.map(b => {
     const url = `https://hemm.ing/flowers/${b.id}`;
     const flowers = b.f.split('.').map(k => { const d = BY_KEY[k.replace('*', '')]; return d ? `<span style="color:${d.colour}">${esc(d.name)}</span>${k.endsWith('*') ? ' <span style="color:var(--pink)">&lt;3</span>' : ''}` : esc(k); }).join(', ');
-    const via = b.via === 'stripe' ? '99¢' : b.via?.startsWith('code:') ? 'FLWR-' + b.via.slice(9) : esc(b.via);
+    const via = b.via === 'stripe' ? '$0.99' : b.via?.startsWith('code:') ? 'FLWR-' + b.via.slice(9) : esc(b.via);
     return `<div class="b ${b.status}">
       <img src="api/icon/${b.id}" alt="" loading="lazy">
       <div class="body">
