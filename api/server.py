@@ -108,9 +108,12 @@ def email_html(i, d):
 <p style="color:#9d9096;margin:6px 0 18px">your bouquet is ready. it blooms, sways in the wind, and spells their name when they tap it.</p>
 <img src="{url.replace('/flowers/', '/flowers/api/icon/')}" width="96" height="96" alt="" style="display:block;border:1px dashed #5a4a50;border-radius:3px;margin:0 0 18px">
 <a href="{url}" style="color:#ffd6dc;font-size:16px;text-decoration:none;{mono}">hemm.ing/flowers/{i}</a>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 4px"><tr><td style="border:1px solid #ffd6dc;border-radius:3px">
-<a href="{url}" style="display:inline-block;padding:10px 18px;color:#ffd6dc;text-decoration:none;{mono};font-size:13px">[ open the bouquet ]</a></td></tr></table>
-<p style="color:#9d9096;font-size:12px;margin:18px 0 0">send that link to {name}. keep this email: it's your copy if you ever lose it.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 4px"><tr>
+<td style="border:1px solid #ffd6dc;border-radius:3px"><a href="{url}" style="display:inline-block;padding:10px 16px;color:#ffd6dc;text-decoration:none;{mono};font-size:13px">[ open ]</a></td>
+<td style="width:10px"></td>
+<td style="border:1px dashed #ffd6dc;border-radius:3px"><a href="{url}?share" style="display:inline-block;padding:10px 16px;color:#ffd6dc;text-decoration:none;{mono};font-size:13px"><img src="https://hemm.ing/flowers/share.png" width="13" height="13" alt="" style="vertical-align:-2px;border:0"> share</a></td>
+</tr></table>
+<p style="color:#9d9096;font-size:12px;margin:18px 0 0">tap share to send it to {name}. keep this email: it's your copy if you ever lose it.</p>
 </td></tr>
 <tr><td style="color:#5a5258;font-size:11px;padding:12px 4px;text-align:center;{mono}">made with <a href="https://hemm.ing/flowers/" style="color:#9d9096;text-decoration:none">hemm.ing/flowers</a></td></tr>
 </table></td></tr></table></body></html>"""
