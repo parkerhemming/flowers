@@ -250,7 +250,7 @@ function update() {
   // what's in it so far
   const names = state.picks.map(k => BY_KEY[k].name + (k === state.fav ? ' <span style="color:#ffd6dc">&lt;3</span>' : '')).join(', ');
   const notes = state.notes.length ? ` · ${state.notes.length} note${state.notes.length > 1 ? 's' : ''} added` : '';
-  $('summary').innerHTML = n ? `<b>for ${esc(name ? name.toLowerCase() : '...')}</b>: ${names}${notes}` : "pick some flowers and they'll show up here." + notes;
+  $('summary').innerHTML = n ? `${name ? `<b>for ${esc(name.toLowerCase())}</b>: ` : ''}${names}${notes}` : "pick some flowers and they'll show up here." + notes;
   $('mini').classList.toggle('ready', !!n);
   $('make').disabled = !(n && name);
   // the live bouquet, rebuilt (and re-bloomed) a beat after the last change; frozen fully open to stay light
