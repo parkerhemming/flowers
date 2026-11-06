@@ -13,6 +13,8 @@
   @media (max-width:520px){main{padding:20px 10px 48px}#grid{gap:8px}.tile{padding:6px 6px 8px}.mean{font-size:11px}}
   .tile canvas{display:block;width:100%}
   figcaption{margin-top:8px}
+  h2.sec{grid-column:1/-1;font-size:13px;font-weight:600;color:#ffd6dc;margin:14px 0 0}
+  h2.sec::before{content:'// ';color:#9d9096}
   .num{color:#9d9096}
   .mean{color:#9d9096;font-size:12px}
 </style>
@@ -730,7 +732,9 @@ class Tile {
   }
 }
 
-const host = document.getElementById('grid'), tiles = CATALOG.map((d, i) => new Tile(d, i, host));
+const host = document.getElementById('grid'), sec = t => host.insertAdjacentHTML('beforeend', `<h2 class="sec">${t}</h2>`);
+sec('original');
+const tiles = CATALOG.map((d, i) => (i === 8 && sec('additional'), new Tile(d, i, host)));
 const visible = new Set(), io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)));
 tiles.forEach(t => io.observe(t.c));
 addEventListener('resize', () => tiles.forEach(t => t.size()));
