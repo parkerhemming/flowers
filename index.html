@@ -29,10 +29,11 @@
   figcaption{margin-top:4px;font-size:13px}
   .num{display:none}
   .mean{color:var(--dim);font-size:11px}
-  .acts{display:flex;margin:4px -6px 0;border-top:1px dashed var(--line)}
+  .tile{cursor:pointer;user-select:none;-webkit-user-select:none}   /* the whole card adds / removes it */
+  .acts{display:flex;flex-wrap:wrap;margin:4px -6px 0;border-top:1px dashed var(--line)}
   button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
   .acts button{min-height:44px;flex:1;font-size:13px}
-  .acts .fav{flex:0 0 52px;border-left:1px dashed var(--line);color:#5a5258}
+  .acts .fav{flex:0 0 100%;border-top:1px dashed var(--line);color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
   .acts .fav[hidden]{display:none}
   .tile.on .add{color:var(--c)}
   .acts .fav.on{color:var(--pink);text-shadow:0 0 10px rgba(255,150,170,.6)}
@@ -53,7 +54,9 @@
   #mini{flex:0 0 104px;height:124px;border:1px dashed var(--line);border-radius:3px;overflow:hidden;position:relative}
   #mini iframe{border:0;width:100%;height:100%;pointer-events:none;background:var(--bg)}
   #mini .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5258;font-size:11px;text-align:center}
-  #side{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  #side{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0}
+  #summary{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* one line, never wraps */
+  #summary b{color:var(--ink);font-weight:600}
   .row{display:flex;gap:8px}
   .big{min-height:44px;flex:1;border:1px solid var(--line);border-radius:3px;font-size:13px;white-space:nowrap;padding:0 8px}
   #dock .row{flex-wrap:wrap}                            /* never wrap the words: if both don't fit, make it gets its own line */
@@ -98,7 +101,7 @@
     <div class="prompt"><label for="from">&gt; from:</label><input id="from" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="20" placeholder="you (optional)"></div>
 
     <h2 class="sec">step 1 · focal flowers</h2>
-    <p class="hint">the main flowers. pick up to 3. tap &lt;3 on their favorite.</p>
+    <p class="hint">the main flowers. tap a flower to add it, up to 3. then tap &lt;3 on their favorite.</p>
     <div class="grid" id="focal"></div>
 
     <h2 class="sec">step 2 · filler &amp; greenery</h2>
@@ -122,6 +125,7 @@
   <div id="dock">
     <div id="mini"><div class="empty">pick a<br>flower</div></div>
     <div id="side">
+      <div id="summary">pick some flowers</div>
       <div class="row">
         <button class="big" id="look" disabled>[ preview ]</button>
         <button class="big go" id="make" disabled>[ make it · $0.99 ]</button>
@@ -166,14 +170,16 @@
 const MAX = { focal: 3, filler: 2 }, MAX_NOTES = 6;
 const state = { picks: [], fav: null, notes: [] };      // picks: flower keys in the order chosen
 const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---- flower cards ----
 const tiles = [];
 for (const kind of ['focal', 'filler']) CATALOG.filter(d => d.kind === kind).forEach(d => {
   const t = new Tile(d, tiles.length, $(kind));
   t.card.style.setProperty('--c', d.colour);
-  t.card.insertAdjacentHTML('beforeend', `<div class="acts"><button class="add">[ + add ]</button><button class="fav" hidden aria-label="Their favorite">&lt;3</button></div>`);
-  t.card.querySelector('.add').onclick = () => toggle(d);
+  t.card.insertAdjacentHTML('beforeend', `<div class="acts"><button class="add">[ + add ]</button><button class="fav" hidden></button></div>`);
+  // anywhere on the card adds / removes it; the <3 button only marks the favorite
+  t.card.onclick = e => { if (!e.target.closest('.fav')) toggle(d); };
   t.card.querySelector('.fav').onclick = () => { state.fav = state.fav === d.key ? null : d.key; update(); };
   tiles.push(t);
 });
@@ -210,11 +216,15 @@ let miniSrc = '', miniTimer = 0;
 function update() {
   const name = $('to').value.trim(), n = state.picks.length;
   $('count').textContent = `${name.length}/9`;
+  // "<3 sam's favorite?" — with their name when it fits on the card's button, otherwise "their"
+  const whose = name && name.length <= 7 ? `${name.toLowerCase()}'s ` : 'their ';
   for (const t of tiles) {
     const k = t.def.key, on = state.picks.includes(k), full = state.picks.filter(x => BY_KEY[x].kind === t.def.kind).length >= MAX[t.def.kind];
     t.card.classList.toggle('on', on); t.card.classList.toggle('full', full);
     t.card.querySelector('.add').textContent = on ? '[ ✓ added ]' : full ? `[ max ${MAX[t.def.kind]} ]` : '[ + add ]';
-    const fav = t.card.querySelector('.fav'); fav.hidden = !on; fav.classList.toggle('on', state.fav === k);
+    const fav = t.card.querySelector('.fav'), isFav = state.fav === k;
+    fav.hidden = !on; fav.classList.toggle('on', isFav);
+    fav.textContent = `<3 ${whose}favorite${isFav ? '' : '?'}`;
   }
   $('notes').innerHTML = '';
   state.notes.forEach((m, i) => {
@@ -225,6 +235,9 @@ function update() {
   });
   $('msg').disabled = state.notes.length >= MAX_NOTES;
   $('msg').placeholder = state.notes.length >= MAX_NOTES ? `${MAX_NOTES} notes max` : 'happy birthday';
+  // one line of what's in it so far
+  const names = state.picks.map(k => BY_KEY[k].name + (k === state.fav ? ' <span style="color:#ffd6dc">&lt;3</span>' : '')).join(', ');
+  $('summary').innerHTML = n ? `<b>for ${esc(name ? name.toLowerCase() : '...')}</b>: ${names}` : 'pick some flowers';
   $('look').disabled = !n;
   $('make').disabled = !(n && name);
   // the live bouquet, rebuilt (and re-bloomed) a beat after the last change; frozen fully open to stay light
