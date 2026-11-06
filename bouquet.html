@@ -601,7 +601,7 @@ function scene(M, T = 1e3, wind = 1) {
 // ---------- ASCII pass ----------
 const still = q.has('m') || q.has('bt');            // ?m= / ?bt= freeze a single moment for inspection
 let hist = null, prevL = null, prevR, prevG, prevB, prevA, dim = 1;
-let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.get('bt') : 1e3, q.has('bt') ? 0 : 1];
+let G_ = null, cur = [clamp01(parseFloat(q.get('m') ?? '0')), q.has('bt') ? +q.get('bt') : still ? 1e3 : 0, q.has('bt') ? 0 : 1];   // live: the very first frame is the empty start of the bloom, not a flash of the full bouquet
 function setup() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(3, devicePixelRatio || 1);   // full res: a 2x canvas on a 3x phone looks blurry
   c.style.width = W + 'px'; c.style.height = H + 'px';
