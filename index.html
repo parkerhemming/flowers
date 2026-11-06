@@ -123,13 +123,13 @@
     <div id="side">
       <div id="summary">pick some flowers and they'll show up here.</div>
       <div class="row">
-        <button class="big go" id="make" disabled>[ make it · $0.99 ]</button>
+        <button class="big go" id="make" disabled>[ make it · 99 cents ]</button>
       </div>
     </div>
   </div>
 </main>
 <footer class="small">
-  <a href="mailto:flowers@hemm.ing?subject=refund" title="email flowers@hemm.ing and you'll get your $0.99 back">refunds</a> · <a href="privacy.html">privacy</a> · made by parker <a href="https://hemm.ing">hemm.ing</a>
+  <a href="mailto:flowers@hemm.ing?subject=refund" title="email flowers@hemm.ing and you'll get your 99 cents back">refunds</a> · <a href="privacy.html">privacy</a> · made by parker <a href="https://hemm.ing">hemm.ing</a>
 </footer>
 <div id="pay" role="dialog" aria-label="Checkout">
   <div class="sheet">
@@ -140,7 +140,7 @@
       <div class="or" id="ortxt">or pay with card</div>
       <div id="card"></div>
       <div class="prompt" style="margin-top:12px"><label for="email">&gt; email:</label><input id="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="for your copy of the link"></div>
-      <button class="big go" id="paybtn" hidden>[ pay $0.99 ]</button>
+      <button class="big go" id="paybtn" hidden>[ pay 99 cents ]</button>
       <p class="err" id="payerr"></p>
       <div class="codebox">
         <div class="prompt"><label for="code">&gt; code:</label><input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" placeholder="have a code?"><button id="redeem">[ use ]</button></div>
@@ -298,7 +298,7 @@ async function confirm(walletEmail, ev) {
   waitPaid(current.id);
 }
 $('make').onclick = async () => {
-  $('what').textContent = `a bouquet for ${$('to').value.trim().toLowerCase()} · $0.99`;
+  $('what').textContent = `a bouquet for ${$('to').value.trim().toLowerCase()} · 99 cents`;
   $('buy').hidden = false; $('done').hidden = true; err(''); $('pay').classList.add('open');
   $('wallets').innerHTML = $('card').innerHTML = ''; $('paybtn').hidden = true; $('ortxt').hidden = true;
   try {
