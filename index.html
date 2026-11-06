@@ -340,7 +340,6 @@ const addUnit = u => { stemProps(u); u.id = units.length; units.push(u); return 
  [17, -101, 9.5, 2.6, .45, .8, 1, 3.5], [-4, -80, 13.2, .3, .15, .93, 1, 5], [21, -73, 11.4, 1.9, 1.05, .74, 1, 6],
  [-26, -65, 10.2, 2.9, -1.15, .66, .85, 7]]
   .forEach(([hx, hy, r, rot, tilt, sq, open, z]) => addUnit({ type: 'rose', hx, hy, r, rot, tilt, sq, open, z }));
-const DOT = units[4];                      // the big centre rose becomes the dot of the i
 
 // dok rak umbels and baby's breath: many small florets on pedicels from one stalk
 [[-34, -104, 5.4, 2], [37, -88, 6.8, 4], [-5, -60, 4.4, 8], [30, -114, 5, 1.5], [-46, -68, 4.8, 6]].forEach(([cx, cy, R, z]) => {
@@ -375,19 +374,94 @@ for (let i = 0; i < 10; i++)
   leaves.push({ host: ROSES[rnd2() * ROSES.length | 0], t: .18 + rnd2() * .35, a: (rnd2() - .5) * 2.2,
     len: 12 + rnd2() * 12, w: 3 + rnd2() * 2, z: rnd2() < .75 ? 2.5 + rnd2() * 3 : 7.5 + rnd2() });
 
-// ---- the name, as loose hand-drawn strokes (world units) ----
-const bowl = [];
-for (let th = 40; th <= 322; th += 14) bowl.push([34 + 12 * Math.cos(th * Math.PI / 180), -87 - 14 * Math.sin(th * Math.PI / 180)]);
-const STROKES = [
-  [[-56, -72], [-48, -98], [-40, -121]], [[-40, -121], [-33, -97], [-25, -72]], [[-49, -89], [-31, -90]],   // A
-  [[-15, -101], [-15, -72]], [[-15, -91], [-11, -99], [-6, -102.5], [-2, -100]],                              // r
-  [[11, -101], [11, -72]],                                                                                    // i (dot = rose)
-  bowl, [[46, -100], [46.5, -80], [48, -73], [53, -75]],                                                    // a
-];
+// ---- the name, as loose single-line strokes ----
+// A tiny hand-made font: cap height 10, x-height 6, baseline 0, y down. A one-point
+// stroke is a dot (i, j) and gets exactly one flower: the biggest rose.
+const arc = (cx, cy, rx, ry, a0, a1) => { const out = [], n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 18));
+  for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; out.push([cx + rx * Math.cos(a), cy - ry * Math.sin(a)]); } return out; };
+const FONT = {
+  A: [6, [[0, 0], [3, -10], [6, 0]], [[1.2, -4], [4.8, -4]]],
+  B: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.5, 2.4, 2.5, 90, -90), [0, -5]], [[0, -5], [3.2, -5], ...arc(3.2, -2.5, 2.7, 2.5, 90, -90), [0, 0]]],
+  C: [7, arc(4.6, -5, 4.6, 5, 50, 310)],
+  D: [6.5, [[0, 0], [0, -10], [2.5, -10], ...arc(2.5, -5, 4, 5, 90, -90), [0, 0]]],
+  E: [5, [[5, -10], [0, -10], [0, 0], [5, 0]], [[0, -5], [4, -5]]],
+  F: [5, [[5, -10], [0, -10], [0, 0]], [[0, -5], [4, -5]]],
+  G: [8, [...arc(4, -5, 4, 5, 50, 360), [5, -5]]],
+  H: [6, [[0, 0], [0, -10]], [[6, 0], [6, -10]], [[0, -5], [6, -5]]],
+  I: [0, [[0, 0], [0, -10]]],
+  J: [4, [[4, -10], [4, -3], ...arc(2, -3, 2, 3, 0, -180)]],
+  K: [6, [[0, 0], [0, -10]], [[5.5, -10], [0, -4]], [[1.8, -6], [5.8, 0]]],
+  L: [5, [[0, -10], [0, 0], [5, 0]]],
+  M: [8, [[0, 0], [0, -10], [4, -3], [8, -10], [8, 0]]],
+  N: [6, [[0, 0], [0, -10], [6, 0], [6, -10]]],
+  O: [9, arc(4.5, -5, 4.5, 5, 0, 360)],
+  P: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.25, 2.75, 2.75, 90, -90), [0, -4.5]]],
+  Q: [9, arc(4.5, -5, 4.5, 5, 0, 360), [[5.5, -2.5], [9, .5]]],
+  R: [6, [[0, 0], [0, -10], [3, -10], ...arc(3, -7.25, 2.75, 2.75, 90, -90), [0, -4.5]], [[3, -4.5], [6, 0]]],
+  S: [6, [...arc(3, -7.5, 3, 2.5, 30, 270), ...arc(3, -2.5, 3, 2.5, 90, -150)]],
+  T: [7, [[0, -10], [7, -10]], [[3.5, -10], [3.5, 0]]],
+  U: [6, [[0, -10], [0, -3.5], ...arc(3, -3.5, 3, 3.5, 180, 360), [6, -10]]],
+  V: [6, [[0, -10], [3, 0], [6, -10]]],
+  W: [9, [[0, -10], [2, 0], [4.5, -7], [7, 0], [9, -10]]],
+  X: [6, [[0, -10], [6, 0]], [[6, -10], [0, 0]]],
+  Y: [6, [[0, -10], [3, -5], [6, -10]], [[3, -5], [3, 0]]],
+  Z: [6, [[0, -10], [6, -10], [0, 0], [6, 0]]],
+  a: [7, arc(2.8, -3, 2.8, 3, 40, 322), [[5.6, -6], [5.7, -1.4], [6.2, -.1], [7, -.4]]],
+  b: [5.6, [[0, -10], [0, 0]], arc(2.8, -3, 2.8, 3, 160, -160)],
+  c: [5.5, arc(3, -3, 3, 3, 45, 315)],
+  d: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -10], [5.6, 0]]],
+  e: [5.8, [[.2, -3], [5.8, -3], ...arc(2.9, -3, 2.9, 3, 0, 315)]],
+  f: [4.5, [...arc(4.5, -8, 2, 2, 30, 180), [2.5, 0]], [[.8, -6], [4.4, -6]]],
+  g: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -6], [5.6, 1.5], ...arc(2.8, 1.5, 2.8, 2, 0, -160)]],
+  h: [5.2, [[0, -10], [0, 0]], [[0, -3.5], ...arc(2.6, -3.5, 2.6, 2.5, 180, 0), [5.2, 0]]],
+  i: [0, [[0, -6], [0, 0]], [[0, -8.6]]],
+  j: [1.5, [[1.5, -6], [1.5, 1.5], ...arc(0, 1.5, 1.5, 2, 0, -150)], [[1.5, -8.6]]],
+  k: [4.8, [[0, -10], [0, 0]], [[4.5, -6], [0, -2.5]], [[1.6, -3.6], [4.8, 0]]],
+  l: [1.6, [[0, -10], [0, -1], [.8, 0], [1.6, -.3]]],
+  m: [8, [[0, -6], [0, 0]], [[0, -3.8], ...arc(2, -3.8, 2, 2.2, 180, 0), [4, 0]], [[4, -3.8], ...arc(6, -3.8, 2, 2.2, 180, 0), [8, 0]]],
+  n: [5.2, [[0, -6], [0, 0]], [[0, -3.5], ...arc(2.6, -3.5, 2.6, 2.5, 180, 0), [5.2, 0]]],
+  o: [5.8, arc(2.9, -3, 2.9, 3, 0, 360)],
+  p: [5.6, [[0, -6], [0, 3.5]], arc(2.8, -3, 2.8, 3, 160, -160)],
+  q: [5.6, arc(2.8, -3, 2.8, 3, 20, 340), [[5.6, -6], [5.6, 3.5]]],
+  r: [2.7, [[0, -6], [0, 0]], [[0, -4], [.8, -5.6], [1.9, -6.3], [2.7, -5.8]]],
+  s: [4.4, [...arc(2.2, -4.5, 2.2, 1.5, 30, 270), ...arc(2.2, -1.5, 2.2, 1.5, 90, -150)]],
+  t: [3.6, [[1.5, -8.5], [1.5, -1], ...arc(2.7, -1, 1.2, 1, 180, 270)], [[0, -6], [3.6, -6]]],
+  u: [5.2, [[0, -6], [0, -2.5], ...arc(2.6, -2.5, 2.6, 2.5, 180, 360), [5.2, -6]], [[5.2, -6], [5.2, 0]]],
+  v: [5.2, [[0, -6], [2.6, 0], [5.2, -6]]],
+  w: [7.6, [[0, -6], [1.8, 0], [3.8, -4.5], [5.8, 0], [7.6, -6]]],
+  x: [5, [[0, -6], [5, 0]], [[5, -6], [0, 0]]],
+  y: [5.2, [[0, -6], [2.6, 0]], [[5.2, -6], [1.5, 3.5]]],
+  z: [5, [[0, -6], [5, -6], [0, 0], [5, 0]]],
+};
+// ?name=: letters and spaces only (accents folded), at most 10, written "Aria"-style
+const NAME_MAX = 8;                                  // past 8 the letters get too thin to read on a phone
+function cleanName(raw) {
+  const n = (raw || '').normalize('NFD').replace(/[^A-Za-z ]/g, '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX).trim().toLowerCase();
+  return n.replace(/(^|\s)[a-z]/g, c => c.toUpperCase());
+}
+const NAME = cleanName(q.get('name')) || 'Aria';
+// lay the name out in font units, then fit it into the box the original "Aria" filled:
+// 129 world units wide at most, cap height 57.8, centred on x -1.2 / midline -96.4
+const STROKES = [], DOTS = [];
+{
+  let pen = 0;
+  for (const ch of NAME) {
+    if (ch === ' ') { pen += 4; continue; }
+    const [w, ...strokes] = FONT[ch];
+    for (const st of strokes) (st.length === 1 ? DOTS : STROKES).push(st.map(([x, y]) => [x + pen, y]));
+    pen += w + 2.2;
+  }
+  // long names first get narrower letters (down to 70%), and only then smaller ones
+  const w = pen - 2.2, cx = Math.max(.7, Math.min(1, 129 / (w * 5.78))), sc = Math.min(5.78, 129 / (w * cx)), sx = sc * cx;
+  const x0 = -1.2 - w * sx / 2, base = -96.4 + 5 * sc;
+  for (const st of [...STROKES, ...DOTS]) for (const p of st) { p[0] = x0 + p[0] * sx; p[1] = base + p[1] * sc; }
+  var NS = sc / 5.78;                                  // name scale relative to "Aria": shrinks the heads on long names
+}
+// the biggest roses become the dots of i and j
+const DOT_UNITS = units.filter(u => u.type === 'rose').sort((a, b) => b.r - a.r).slice(0, DOTS.length);
+const isDot = u => DOT_UNITS.includes(u);
 (function assignTargets() {
-  const SC = 1.18;   // stretch the strokes a little so the heads have room
-  STROKES.forEach(pl => pl.forEach(p => { p[0] = (p[0] + 3) * SC - 3; p[1] = (p[1] + 97) * SC - 97; }));
-  const movers = units.filter(u => u !== DOT);
+  const movers = units.filter(u => !isDot(u));
   const len = pl => pl.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pl[i][0], p[1] - pl[i][1]), 0);
   const lens = STROKES.map(len), tot = lens.reduce((a, b) => a + b);
   const counts = lens.map(l => Math.max(2, Math.round(l / tot * movers.length)));
@@ -400,9 +474,9 @@ const STROKES = [
       for (let i = 1; i < pl.length; i++) {
         const seg = Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]);
         if (d <= seg || i === pl.length - 1) {
-          const f = Math.min(1, d / seg);
+          const f = Math.min(1, d / seg), wob = 2.2 * NS;
           // a little hand-placed wobble so it reads arranged, not typeset
-          pts.push([pl[i - 1][0] + (pl[i][0] - pl[i - 1][0]) * f + (rnd2() - .5) * 2.2, pl[i - 1][1] + (pl[i][1] - pl[i - 1][1]) * f + (rnd2() - .5) * 2.2]);
+          pts.push([pl[i - 1][0] + (pl[i][0] - pl[i - 1][0]) * f + (rnd2() - .5) * wob, pl[i - 1][1] + (pl[i][1] - pl[i - 1][1]) * f + (rnd2() - .5) * wob]);
           break;
         }
         d -= seg;
@@ -423,8 +497,9 @@ const STROKES = [
     g.sort((a, b) => (a.t ?? 0) - (b.t ?? 0) || a.hx - b.hx);
     g.forEach(u => { [u.tx, u.ty] = pts[idx++]; });
   });
-  DOT.tx = (11 + 3) * 1.18 - 3; DOT.ty = -120;
-  units.forEach(u => u.delay = clamp01((u.tx + 56) / 108) * .08);       // a slight left-to-right ripple
+  DOT_UNITS.forEach((u, i) => { [u.tx, u.ty] = DOTS[i][0]; });
+  const xs = units.map(u => u.tx), lo = Math.min(...xs), hi = Math.max(...xs);
+  units.forEach(u => u.delay = clamp01((u.tx - lo) / (hi - lo || 1)) * .08);   // a slight left-to-right ripple
 })();
 
 // Stems leave the flower heading toward the tie (with a gentle sideways bow), so
@@ -537,20 +612,21 @@ function scene(M, T = 1e3, wind = 1) {
       drawStem(u, u.x, u.y, u.e, grow(u.g0, u.gD));
       if (Tb < u.b0) return;
       const breathe = 1 + .012 * Math.sin(T * 1.1 + u.phase);
-      const rr = (u.r + ((u === DOT ? 6.5 : 4.6) - u.r) * u.e) * breathe;
+      const rr = (u.r + ((isDot(u) ? 6.5 : 4.6) * NS - u.r) * u.e) * breathe;
       P = u.bl; rose(u.x, u.y, rr, u.rot, u.tilt * (1 - .7 * u.e) + nod, u.sq + (.95 - u.sq) * u.e, u.open + (1 - u.open) * .5 * u.e); P = 1;
       return;
     }
     if (Tb < u.b0) return;
     P = u.bl;
-    if (u.type === 'dok') dokRakHead(u.x, u.y, u.r * (1 - .1 * u.e), u.rot + nod);
-    else if (u.type === 'dokbud') dokRakBud(u.x, u.y, u.r);
+    if (u.type === 'dok') dokRakHead(u.x, u.y, u.r * (1 - (1 - .9 * NS) * u.e), u.rot + nod);
+    else if (u.type === 'dokbud') dokRakBud(u.x, u.y, u.r * (1 + (NS - 1) * u.e));
     else if (u.type === 'bb') for (let k = 0; k < 5; k++) {           // a sprig of tiny white florets
       const a = k * 1.26 + u.rot + nod;
-      s.beginPath(); s.arc(u.x + Math.cos(a) * u.r * (k ? 1 : 0), u.y + Math.sin(a) * u.r * .8 * (k ? 1 : 0), .55 * ease(u.bl * 1.3), 0, TAU);
+      const ns = 1 + (NS - 1) * u.e;
+      s.beginPath(); s.arc(u.x + Math.cos(a) * u.r * ns * (k ? 1 : 0), u.y + Math.sin(a) * u.r * ns * .8 * (k ? 1 : 0), .55 * ns * ease(u.bl * 1.3), 0, TAU);
       s.fillStyle = '#f4eef2'; s.fill();
     }
-    else if (u.type === 'orchid') orchid(u.x, u.y, u.r + (3.4 - u.r) * u.e, u.rot + nod);
+    else if (u.type === 'orchid') orchid(u.x, u.y, u.r + (3.4 * NS - u.r) * u.e, u.rot + nod);
     else if (u.type === 'obud') {
       const b = ease(u.bl * 1.2);
       s.beginPath(); s.ellipse(u.x, u.y, 1.1 * b, 1.7 * b, u.side * .5 + nod, 0, TAU);
