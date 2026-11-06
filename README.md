@@ -74,34 +74,6 @@ Everything runs on the hemm.ing server (74.207.243.33), behind Cloudflare.
 
 **Limits:** each visitor can start 12 checkouts and make 10 wrong code guesses per hour.
 
-### Admin dashboard
-
-**https://hemm.ing/flowers/admin**: every bouquet with its link, icon, flowers, notes and buyer email, plus sales stats. Tools: copy or open links, resend a confirmation email, delete a bouquet, and make or copy free codes. It asks for the admin key once per device.
-
-### Admin commands
-
-Run these on the server:
-
-```bash
-ssh root@74.207.243.33 sudo -u flowers python3 /opt/flowers/server.py codes 5
-```
-Makes 5 new single-use redeem codes, like `FLWR-HA7TWM`. Give one to a friend and they get a free bouquet.
-
-```bash
-ssh root@74.207.243.33 sudo -u flowers python3 /opt/flowers/server.py codes
-```
-Lists every code: when it was made, whether it's been used, and which bouquet it made.
-
-```bash
-ssh root@74.207.243.33 sudo -u flowers python3 /opt/flowers/server.py list
-```
-Shows the latest 30 bouquets: id, date, paid or pending, how it was paid, names, flowers, buyer email. Add a number for more, e.g. `list 200`.
-
-```bash
-ssh root@74.207.243.33 sudo -u flowers python3 /opt/flowers/server.py delete 59jg3v 9kzptm
-```
-Deletes bouquets and their icons for good. Their links stop working.
-
 ### Publishing a change
 
 Upload the pages:
