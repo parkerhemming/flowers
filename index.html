@@ -434,7 +434,7 @@ const FONT = {
   z: [5, [[0, -6], [5, -6], [0, 0], [5, 0]]],
 };
 // ?name=: letters and spaces only (accents folded), at most 10, written "Aria"-style
-const NAME_MAX = 8;                                  // past 8 the letters get too thin to read on a phone
+const NAME_MAX = 9;                                  // past 9 the letters blur together on a phone
 function cleanName(raw) {
   const n = (raw || '').normalize('NFD').replace(/[^A-Za-z ]/g, '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX).trim().toLowerCase();
   return n.replace(/(^|\s)[a-z]/g, c => c.toUpperCase());
@@ -444,18 +444,21 @@ const NAME = cleanName(q.get('name')) || 'Aria';
 // 129 world units wide at most, cap height 57.8, centred on x -1.2 / midline -96.4
 const STROKES = [], DOTS = [];
 {
+  // long names squeeze: tighter letter gaps, then narrower letters (down to 60%), and only then smaller ones
+  const layout = gap => { let pen = 0; for (const ch of NAME) pen += ch === ' ' ? 4 : FONT[ch][0] + gap; return pen - gap; };
+  const gap = layout(2.2) * 5.78 > 129 ? 1.3 : 2.2;
   let pen = 0;
   for (const ch of NAME) {
     if (ch === ' ') { pen += 4; continue; }
     const [w, ...strokes] = FONT[ch];
     for (const st of strokes) (st.length === 1 ? DOTS : STROKES).push(st.map(([x, y]) => [x + pen, y]));
-    pen += w + 2.2;
+    pen += w + gap;
   }
-  // long names first get narrower letters (down to 70%), and only then smaller ones
-  const w = pen - 2.2, cx = Math.max(.7, Math.min(1, 129 / (w * 5.78))), sc = Math.min(5.78, 129 / (w * cx)), sx = sc * cx;
+  const w = pen - gap, cx = Math.max(.6, Math.min(1, 129 / (w * 5.78))), sc = Math.min(5.78, 129 / (w * cx)), sx = sc * cx;
   const x0 = -1.2 - w * sx / 2, base = -96.4 + 5 * sc;
   for (const st of [...STROKES, ...DOTS]) for (const p of st) { p[0] = x0 + p[0] * sx; p[1] = base + p[1] * sc; }
-  var NS = sc / 5.78;                                  // name scale relative to "Aria": shrinks the heads on long names
+  var NS = sc / 5.78;                                  // name scale relative to "Aria"
+  var HS = Math.min(1, Math.sqrt(NS) * 1.15);          // heads shrink much less than the letters, so long names stay full
 }
 // the biggest roses become the dots of i and j
 const DOT_UNITS = units.filter(u => u.type === 'rose').sort((a, b) => b.r - a.r).slice(0, DOTS.length);
@@ -612,21 +615,21 @@ function scene(M, T = 1e3, wind = 1) {
       drawStem(u, u.x, u.y, u.e, grow(u.g0, u.gD));
       if (Tb < u.b0) return;
       const breathe = 1 + .012 * Math.sin(T * 1.1 + u.phase);
-      const rr = (u.r + ((isDot(u) ? 6.5 : 4.6) * NS - u.r) * u.e) * breathe;
+      const rr = (u.r + ((isDot(u) ? 6.5 : 4.6) * HS - u.r) * u.e) * breathe;
       P = u.bl; rose(u.x, u.y, rr, u.rot, u.tilt * (1 - .7 * u.e) + nod, u.sq + (.95 - u.sq) * u.e, u.open + (1 - u.open) * .5 * u.e); P = 1;
       return;
     }
     if (Tb < u.b0) return;
     P = u.bl;
-    if (u.type === 'dok') dokRakHead(u.x, u.y, u.r * (1 - (1 - .9 * NS) * u.e), u.rot + nod);
-    else if (u.type === 'dokbud') dokRakBud(u.x, u.y, u.r * (1 + (NS - 1) * u.e));
+    if (u.type === 'dok') dokRakHead(u.x, u.y, u.r * (1 - (1 - .9 * HS) * u.e), u.rot + nod);
+    else if (u.type === 'dokbud') dokRakBud(u.x, u.y, u.r * (1 + (HS - 1) * u.e));
     else if (u.type === 'bb') for (let k = 0; k < 5; k++) {           // a sprig of tiny white florets
       const a = k * 1.26 + u.rot + nod;
-      const ns = 1 + (NS - 1) * u.e;
+      const ns = 1 + (HS - 1) * u.e;
       s.beginPath(); s.arc(u.x + Math.cos(a) * u.r * ns * (k ? 1 : 0), u.y + Math.sin(a) * u.r * ns * .8 * (k ? 1 : 0), .55 * ns * ease(u.bl * 1.3), 0, TAU);
       s.fillStyle = '#f4eef2'; s.fill();
     }
-    else if (u.type === 'orchid') orchid(u.x, u.y, u.r + (3.4 * NS - u.r) * u.e, u.rot + nod);
+    else if (u.type === 'orchid') orchid(u.x, u.y, u.r + (3.4 * HS - u.r) * u.e, u.rot + nod);
     else if (u.type === 'obud') {
       const b = ease(u.bl * 1.2);
       s.beginPath(); s.ellipse(u.x, u.y, 1.1 * b, 1.7 * b, u.side * .5 + nod, 0, TAU);
