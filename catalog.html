@@ -8,8 +8,9 @@
   main{max-width:1100px;margin:0 auto;padding:28px 16px 60px}
   h1{font-size:15px;font-weight:600;color:#ffd6dc;margin:0 0 4px}
   p.sub{margin:0 0 22px;color:#9d9096}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
-  .tile{margin:0;border:1px dashed rgba(255,214,220,.28);border-radius:3px;padding:10px 10px 12px}
+  #grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;max-width:760px}
+  .tile{margin:0;border:1px dashed rgba(255,214,220,.28);border-radius:3px;padding:10px 10px 12px;min-width:0}
+  @media (max-width:520px){main{padding:20px 10px 48px}#grid{gap:8px}.tile{padding:6px 6px 8px}.mean{font-size:11px}}
   .tile canvas{display:block;width:100%}
   figcaption{margin-top:8px}
   .num{color:#9d9096}
@@ -296,6 +297,204 @@ function babysSprig(x, y, r, rot) {
   }
 }
 
+function peony(cx, cy, r, rot, [base, mid, edge]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (const [L, n] of [[1, 9], [.8, 9], [.62, 8], [.45, 7], [.3, 6]]) {      // big ruffled layers, outside in
+    for (let i = 0; i < n; i++) {
+      s.save(); s.rotate(i * TAU / n + L * 3 + (rnd() - .5) * .5);
+      const d = r * L * .5, rx = r * L * .42 * (.9 + rnd() * .25), ry = r * L * .34;
+      s.beginPath();
+      for (let k = 0; k <= 24; k++) {                                         // wavy outer edge
+        const a = k / 24 * TAU, wob = 1 + (Math.sin(a * 5 + i) * .07) * (Math.sin(a) < 0 ? 1 : 0);
+        s.lineTo(Math.cos(a) * rx * wob, -d + Math.sin(a) * ry * wob);
+      }
+      s.closePath();
+      s.fillStyle = lin(0, -d + ry, 0, -d - ry, [[0, base], [.5, mid], [1, edge]]); s.fill();
+      s.lineWidth = r * .03; s.strokeStyle = shade(base, -.45); s.stroke();
+      s.restore();
+    }
+  }
+  for (let i = 0; i < 14; i++) {                                              // crumpled heart
+    const a = rnd() * TAU, dd = rnd() * r * .16;
+    s.beginPath(); s.ellipse(Math.cos(a) * dd, Math.sin(a) * dd, r * .07, r * .05, a, 0, TAU);
+    s.fillStyle = i % 2 ? edge : shade(mid, -.25); s.fill();
+  }
+  s.restore();
+}
+
+function hydrangea(cx, cy, R, [dark, mid, light]) {
+  const fl = [];
+  for (let i = 0; i < 46; i++) { const a = rnd() * TAU, d = Math.sqrt(rnd()) * R; fl.push([Math.cos(a) * d, Math.sin(a) * d * .85]); }
+  fl.sort((a, b) => a[1] - b[1]);
+  for (const [fx, fy] of fl) {
+    const lit = clamp01(.55 - (fx + fy) / (2.4 * R)), c = lit > .5 ? light : lit > .25 ? mid : dark, fr = R * .15;
+    s.save(); s.translate(cx + fx, cy + fy); s.rotate(fx * .3);
+    for (let k = 0; k < 4; k++) { s.beginPath(); s.ellipse(0, -fr * .55, fr * .42, fr * .55, 0, 0, TAU); s.fillStyle = c; s.fill(); s.lineWidth = fr * .12; s.strokeStyle = shade(dark, -.45); s.stroke(); s.rotate(Math.PI / 2); }
+    s.beginPath(); s.arc(0, 0, fr * .14, 0, TAU); s.fillStyle = shade(light, .4); s.fill();
+    s.restore();
+  }
+}
+
+function lily(cx, cy, r, rot) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (let i = 0; i < 6; i++) {
+    s.save(); s.rotate(i * TAU / 6 + (i % 2 ? .25 : 0));
+    const L = r * (i % 2 ? .95 : 1.05);
+    s.beginPath(); s.moveTo(0, 0); s.quadraticCurveTo(r * .48, -L * .5, r * .06, -L); s.quadraticCurveTo(-r * .48, -L * .5, 0, 0);
+    s.fillStyle = lin(0, 0, 0, -L, [[0, '#9c1450'], [.35, '#e0457e'], [.7, '#f7c6da'], [1, '#ffffff']]); s.fill();
+    s.lineWidth = r * .03; s.strokeStyle = '#5a0f2c'; s.stroke();
+    s.beginPath(); s.moveTo(0, -L * .1); s.lineTo(0, -L * .8); s.strokeStyle = 'rgba(255,255,255,.55)'; s.lineWidth = r * .03; s.stroke();
+    for (let k = 0; k < 6; k++) { s.beginPath(); s.arc((rnd() - .5) * r * .14, -L * (.15 + rnd() * .35), r * .025, 0, TAU); s.fillStyle = '#6e0a32'; s.fill(); }
+    s.restore();
+  }
+  for (let i = 0; i < 6; i++) {                                               // stamens
+    const a = i * TAU / 6 + .5, ex = Math.cos(a) * r * .55, ey = Math.sin(a) * r * .55;
+    s.beginPath(); s.moveTo(0, 0); s.lineTo(ex, ey); s.strokeStyle = '#c9e0a0'; s.lineWidth = r * .025; s.stroke();
+    s.beginPath(); s.ellipse(ex, ey, r * .07, r * .035, a, 0, TAU); s.fillStyle = '#c4561a'; s.fill();
+  }
+  s.restore();
+}
+
+function carnation(cx, cy, r, rot, [base, mid, edge]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (const [L, teeth] of [[1, 34], [.78, 28], [.56, 22], [.34, 16]]) {      // frilly toothed layers
+    s.beginPath();
+    for (let k = 0; k <= teeth * 2; k++) { const a = k / (teeth * 2) * TAU, rr = r * L * (k % 2 ? .86 : 1) * (.94 + rnd() * .1); s.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * .9); }
+    s.closePath();
+    s.fillStyle = rad(0, 0, 0, r * L, [[0, base], [.6, mid], [1, edge]]); s.fill();
+    s.lineWidth = r * .03; s.strokeStyle = shade(base, -.4); s.stroke();
+  }
+  s.restore();
+}
+
+function gerbera(cx, cy, r, rot, [deep, bright, tip]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (const [n, len, off, k] of [[24, 1, 0, -.1], [24, .8, .13, .1]]) {
+    for (let i = 0; i < n; i++) {
+      s.save(); s.rotate(i * TAU / n + off);
+      const ry = r * .33 * len, d = r * .3 + ry;
+      s.beginPath(); s.ellipse(0, -d, r * .085, ry, 0, 0, TAU);
+      s.fillStyle = lin(0, -r * .3, 0, -d - ry, [[0, shade(deep, k)], [.45, shade(bright, k)], [1, shade(tip, k)]]); s.fill();
+      s.lineWidth = r * .025; s.strokeStyle = shade(deep, -.5); s.stroke();
+      s.restore();
+    }
+  }
+  s.beginPath(); s.arc(0, 0, r * .3, 0, TAU); s.fillStyle = rad(0, 0, 0, r * .3, [[0, '#1a1a08'], [.55, '#3e3a10'], [.8, '#b8a020'], [1, '#e8d050']]); s.fill();
+  s.restore();
+}
+
+function ranunculus(cx, cy, r, rot, [base, mid, edge]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (let k = 0; k < 10; k++) {                                              // tightly packed concentric petals
+    const rr = r * (1 - k * .092), ox = Math.sin(k * 1.7) * r * .03, oy = Math.cos(k * 1.3) * r * .03;
+    s.beginPath(); s.ellipse(ox, oy, rr, rr * .92, k * .4, 0, TAU);
+    s.fillStyle = rad(ox, oy - rr * .3, 0, rr, [[0, edge], [.6, mid], [1, base]]); s.fill();
+    s.lineWidth = r * .035; s.strokeStyle = shade(base, -.45); s.stroke();
+  }
+  s.beginPath(); s.arc(0, 0, r * .08, 0, TAU); s.fillStyle = '#5a8a3a'; s.fill();
+  s.restore();
+}
+
+function callaLily(cx, cy, r, rot) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  s.beginPath(); s.moveTo(0, r * .9);                                         // the trumpet (spathe)
+  s.bezierCurveTo(-r * .35, r * .5, -r * .55, -r * .2, -r * .5, -r * .7);
+  s.quadraticCurveTo(-r * .1, -r * 1.05, r * .45, -r * 1.15);                 // curled lip
+  s.quadraticCurveTo(r * .2, -r * .7, r * .38, -r * .3);
+  s.bezierCurveTo(r * .45, r * .1, r * .3, r * .6, 0, r * .9);
+  s.fillStyle = lin(-r * .5, 0, r * .45, 0, [[0, '#9aa890'], [.35, '#f4f2ea'], [.7, '#ffffff'], [1, '#c8cfc0']]); s.fill();
+  s.fillStyle = lin(0, r * .9, 0, r * .2, [[0, 'rgba(70,120,50,.9)'], [1, 'rgba(70,120,50,0)']]); s.fill();
+  s.lineWidth = r * .04; s.strokeStyle = '#5e6658'; s.stroke();
+  s.beginPath(); s.moveTo(-r * .48, -r * .68); s.quadraticCurveTo(-r * .05, -r * .78, r * .38, -r * .3);   // inner throat shadow
+  s.lineWidth = r * .05; s.strokeStyle = '#8c9484'; s.stroke();
+  s.beginPath(); s.ellipse(-r * .02, -r * .35, r * .07, r * .32, -.15, 0, TAU); s.fillStyle = '#f2c230'; s.fill();   // spadix
+  s.restore();
+}
+
+function chrysanthemum(cx, cy, r, rot, [deep, mid, tip]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  s.beginPath(); s.arc(0, 0, r * .85, 0, TAU); s.fillStyle = rad(0, 0, 0, r * .85, [[0, tip], [.5, mid], [1, deep]]); s.fill();
+  for (const L of [1, .82, .64, .46, .3]) {
+    const n = Math.round(20 + L * 22);
+    for (let i = 0; i < n; i++) {
+      s.save(); s.rotate(i * TAU / n + L * 7);
+      const len = r * L * (.85 + rnd() * .2);
+      s.beginPath(); s.moveTo(0, 0); s.quadraticCurveTo(r * .05, -len * .5, 0, -len); s.quadraticCurveTo(-r * .05, -len * .5, 0, 0);
+      s.fillStyle = lin(0, 0, 0, -len, [[0, deep], [.6, mid], [1, tip]]); s.fill();
+      s.lineWidth = r * .02; s.strokeStyle = shade(deep, -.4); s.stroke();
+      s.restore();
+    }
+  }
+  s.restore();
+}
+
+function dahlia(cx, cy, r, rot, [base, mid, edge]) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  s.beginPath(); s.arc(0, 0, r * .9, 0, TAU); s.fillStyle = rad(0, 0, 0, r * .9, [[0, base], [.6, mid], [1, shade(base, .1)]]); s.fill();
+  for (const [L, n] of [[1, 16], [.82, 16], [.64, 14], [.47, 12], [.32, 10], [.18, 8]]) {   // geometric cupped petals
+    for (let i = 0; i < n; i++) {
+      s.save(); s.rotate(i * TAU / n + L * 1.9);
+      const len = r * L, w = r * L * .24;
+      s.beginPath(); s.moveTo(0, -len * .35); s.quadraticCurveTo(w, -len * .7, 0, -len); s.quadraticCurveTo(-w, -len * .7, 0, -len * .35);
+      s.fillStyle = lin(0, -len * .35, 0, -len, [[0, base], [.5, mid], [1, edge]]); s.fill();
+      s.lineWidth = r * .025; s.strokeStyle = shade(base, -.5); s.stroke();
+      s.beginPath(); s.moveTo(0, -len * .45); s.lineTo(0, -len * .9); s.lineWidth = r * .02; s.strokeStyle = shade(base, -.3); s.stroke();   // centre groove
+      s.restore();
+    }
+  }
+  s.beginPath(); s.arc(0, 0, r * .14, 0, TAU); s.fillStyle = shade(base, -.3); s.fill();
+  s.restore();
+}
+
+function anemone(cx, cy, r, rot) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (let i = 0; i < 6; i++) {
+    s.save(); s.rotate(i * TAU / 6 + (rnd() - .5) * .15);
+    s.beginPath(); s.ellipse(0, -r * .55, r * .38, r * .5, 0, 0, TAU);
+    s.fillStyle = lin(0, -r * .05, 0, -r * 1.05, [[0, '#cfcbd6'], [.4, '#f5f3f8'], [1, '#ffffff']]); s.fill();
+    s.lineWidth = r * .03; s.strokeStyle = '#6a6672'; s.stroke();
+    s.restore();
+  }
+  s.beginPath(); s.arc(0, 0, r * .27, 0, TAU); s.fillStyle = '#0d0d1a'; s.fill();
+  for (let i = 0; i < 30; i++) { const a = i * 2.39996, rr = r * (.2 + .15 * (i % 3) / 2); s.beginPath(); s.arc(Math.cos(a) * rr, Math.sin(a) * rr, r * .035, 0, TAU); s.fillStyle = '#1c1c3a'; s.fill(); }
+  s.beginPath(); s.arc(0, 0, r * .12, 0, TAU); s.fillStyle = '#2a2a55'; s.fill();
+  s.restore();
+}
+
+function iris(cx, cy, r, rot) {
+  s.save(); s.translate(cx, cy); s.rotate(rot);
+  for (const a of [-2.3, 0, 2.3]) {                                           // falls: droop down and out, yellow signal
+    s.save(); s.rotate(a * .5); s.scale(1, -1);
+    s.beginPath(); s.moveTo(0, 0); s.bezierCurveTo(r * .45, -r * .2, r * .4, -r * .9, 0, -r * 1.05); s.bezierCurveTo(-r * .4, -r * .9, -r * .45, -r * .2, 0, 0);
+    s.fillStyle = lin(0, 0, 0, -r * 1.05, [[0, '#2e1a6a'], [.5, '#5a3cc0'], [1, '#8f78ea']]); s.fill();
+    s.lineWidth = r * .03; s.strokeStyle = '#1a0f40'; s.stroke();
+    s.beginPath(); s.ellipse(0, -r * .35, r * .08, r * .22, 0, 0, TAU); s.fillStyle = '#f2c230'; s.fill();
+    s.restore();
+  }
+  for (const a of [-.45, 0, .45]) {                                           // standards: upright
+    s.save(); s.rotate(a);
+    s.beginPath(); s.moveTo(0, 0); s.bezierCurveTo(r * .3, -r * .2, r * .25, -r * .8, 0, -r * .95); s.bezierCurveTo(-r * .25, -r * .8, -r * .3, -r * .2, 0, 0);
+    s.fillStyle = lin(0, 0, 0, -r * .95, [[0, '#3a2480'], [.6, '#7a62e0'], [1, '#b6a6ff']]); s.fill();
+    s.lineWidth = r * .03; s.strokeStyle = '#1a0f40'; s.stroke();
+    s.restore();
+  }
+  s.restore();
+}
+
+function eucalyptus(x, y, len, rot) {
+  s.save(); s.translate(x, y); s.rotate(rot);
+  s.beginPath(); s.moveTo(0, 0); s.quadraticCurveTo(len * .08, len * .5, 0, len); s.strokeStyle = '#6b8a6a'; s.lineWidth = .4; s.stroke();
+  for (let k = 0; k < 7; k++) {                                               // round silvery leaves in pairs
+    const t = k / 7, yy = len * t, rr = 1.2 + t * .8;
+    for (const sd of [-1, 1]) {
+      s.beginPath(); s.ellipse(sd * rr * 1.15, yy, rr, rr * .85, sd * .3, 0, TAU);
+      s.fillStyle = rad(sd * rr * .7, yy - rr * .3, 0, rr * 1.2, [[0, '#d4e4dc'], [.55, '#8fb3a0'], [1, '#4f6e60']]); s.fill();
+      s.lineWidth = .15; s.strokeStyle = '#3a5246'; s.stroke();
+    }
+  }
+  s.restore();
+}
+
 // ---------- a small hand-tied bunch, swaying ----------
 const TIEY = -6;
 function stemTo(hx, hy, col = '#3f8f4a', w = .55, bowK = 1) {
@@ -381,6 +580,82 @@ const CATALOG = [
         s.beginPath(); s.moveTo(sx, sy); s.lineTo(px, py); s.strokeStyle = 'rgba(90,122,74,.7)'; s.lineWidth = .15; s.stroke(); babysSprig(px, py, 1.5 + rnd() * .5, th + j); }
     }
   } },
+  { name: 'peonies', meaning: 'romance, a happy life together', colour: '#f58fb8', draw(T) {
+    for (const [x, a, len, w] of [[-4, -1, 17, 5.5], [4, 1, 17, 5.5], [0, .15, 19, 5]]) leaf(x, -12, a, len, w);
+    for (const [x, y, r, ph, c] of [[-12, -44, 10, 0, ['#8a1a4a', '#f07aa8', '#ffd6e6']], [13, -47, 9.5, 1.3, ['#9a2a5a', '#f590b8', '#ffe6ef']], [0, -33, 10.5, 2.4, ['#7a1040', '#e0608f', '#ffc6dc']]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#3f8f4a', .7); peony(sx, sy, r, th * 2 + x, c);
+    }
+  } },
+  { name: 'hydrangea', meaning: 'heartfelt gratitude', colour: '#8fa8ff', draw(T) {
+    for (const [x, a] of [[-5, -1.1], [5, 1.1]]) leaf(x, -16, a, 16, 7);
+    for (const [x, y, R, ph, c] of [[-10, -42, 12, 0, ['#2a3f8f', '#6a8ee8', '#c6d6ff']], [11, -50, 11, 1.5, ['#4a2a8f', '#9a7ae8', '#e2d6ff']]]) {
+      const [sx, sy] = swayed(x, y, T, ph); stemTo(sx, sy, '#3f8f4a', .9); seed = 30 + ph * 10; hydrangea(sx, sy, R, c);
+    }
+  } },
+  { name: 'lilies', meaning: 'devotion, "I dare you to love me"', colour: '#f27aa6', draw(T) {
+    for (const [x, a, len] of [[-3, -.9, 16], [3, .9, 16]]) leaf(x, -12, a, len, 3.2);
+    for (const [x, y, ph] of [[-3, -60, .8], [4, -58, 2]]) { const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy + 4, '#4f9a45', .5);
+      s.beginPath(); s.ellipse(sx, sy, 1.6, 4.5, th * 2 + x * .05, 0, TAU); s.fillStyle = lin(sx, sy - 4.5, sx, sy + 4.5, [[0, '#f7c6da'], [1, '#6b9a45']]); s.fill(); }
+    for (const [x, y, r, rot, ph] of [[-12, -40, 13, .3, 0], [13, -45, 12, 1.2, 1.4]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#4f9a45', .7); lily(sx, sy, r, rot + th * 2);
+    }
+  } },
+  { name: 'carnations', meaning: 'admiration, a mother\'s love', colour: '#ff6a80', draw(T) {
+    for (const [x, a] of [[-2, -.5], [3, .45], [0, 0]]) leaf(x, -10, a, 20, 1.6);
+    for (const [x, y, r, ph] of [[-13, -44, 7.5, 0], [13, -48, 7.5, 1.1], [0, -36, 8, 2.2], [-1, -56, 7, 3]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#5e8f6a', .55);
+      s.beginPath(); s.ellipse(sx, sy + r * .9, r * .28, r * .5, 0, 0, TAU); s.fillStyle = '#5e8f6a'; s.fill();   // calyx
+      carnation(sx, sy, r, th * 2 + x, ['#7a0a1e', '#e8304a', '#ff9aa8']);
+    }
+  } },
+  { name: 'gerbera daisies', meaning: 'cheerfulness', colour: '#ff9a3d', draw(T) {
+    for (const [x, a] of [[-4, -1.2], [4, 1.2]]) leaf(x, -6, a, 16, 5);
+    for (const [x, y, r, ph, c] of [[-13, -42, 9.5, 0, ['#b8300a', '#ff7a2a', '#ffb06a']], [13, -46, 9.5, 1.2, ['#a0104a', '#ff4f8f', '#ff9ac0']], [0, -58, 9, 2.4, ['#b88a00', '#ffd23a', '#fff09a']]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#4f9a45', .55); gerbera(sx, sy, r, th * 2 + x, c);
+    }
+  } },
+  { name: 'ranunculus', meaning: '"you are radiant"', colour: '#ffad8a', draw(T) {
+    for (const [x, a] of [[-3, -.9], [3, .9]]) leaf(x, -12, a, 14, 3.5);
+    for (const [x, y, r, ph, c] of [[-12, -42, 7.5, 0, ['#c2553a', '#ff9a7a', '#ffe0cc']], [12, -46, 7.5, 1.3, ['#b0305a', '#ff7aa0', '#ffd6e2']], [0, -54, 7, 2.5, ['#c2553a', '#ffb07a', '#fff0d6']], [1, -34, 7, 3.3, ['#b0305a', '#ff8aa8', '#ffe0ea']]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#4f9a45', .5); ranunculus(sx, sy, r, th * 2 + x, c);
+    }
+  } },
+  { name: 'calla lilies', meaning: 'magnificent beauty', colour: '#f4f2ea', draw(T) {
+    for (const [x, a, len, w] of [[-3, -.7, 20, 5], [3, .7, 20, 5]]) leaf(x, -8, a, len, w);
+    for (const [x, y, r, rot, ph] of [[-12, -46, 8.5, -.45, 0], [11, -50, 8.5, .45, 1.2], [-1, -60, 8, .05, 2.3]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy + r * .85, '#5aa04a', .9, .3); callaLily(sx, sy, r, rot + th * 2);
+    }
+  } },
+  { name: 'chrysanthemums', meaning: 'joy, long life', colour: '#ffc23d', draw(T) {
+    for (const [x, a] of [[-4, -1], [4, 1], [0, .1]]) leaf(x, -14, a, 15, 5);
+    for (const [x, y, r, ph, c] of [[-12, -44, 9.5, 0, ['#a05a00', '#ffb020', '#ffe680']], [12, -48, 9, 1.3, ['#8a2a10', '#e86a2a', '#ffc080']], [0, -34, 9.5, 2.4, ['#a05a00', '#ffc23d', '#fff2b0']]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#3f8f4a', .6); chrysanthemum(sx, sy, r, th * 2 + x, c);
+    }
+  } },
+  { name: 'dahlias', meaning: 'a lasting bond', colour: '#e0408a', draw(T) {
+    for (const [x, a] of [[-4, -1.1], [4, 1.1]]) leaf(x, -12, a, 16, 5.5);
+    for (const [x, y, r, ph, c] of [[-11, -42, 12, 0, ['#5a0a3a', '#d0307a', '#ff9ac6']], [12, -50, 11, 1.4, ['#6a0a14', '#c8243a', '#ff8a8a']]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#3f8f4a', .8); dahlia(sx, sy, r, th * 2 + x, c);
+    }
+  } },
+  { name: 'anemones', meaning: 'anticipation', colour: '#e8e6f0', draw(T) {
+    for (const [x, y] of [[-12, -42], [12, -46], [0, -56]]) { const [sx, sy] = swayed(x, y, T, x); for (const sd of [-1, 1]) leaf(sx * .9, sy + 9, sd * 1.3, 5, 2.4); }
+    for (const [x, y, r, ph] of [[-12, -42, 8, 0], [12, -46, 8, 1.2], [0, -56, 7.5, 2.4]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#4f9a45', .5); anemone(sx, sy, r, th * 2 + x);
+    }
+  } },
+  { name: 'irises', meaning: 'faith, hope, wisdom', colour: '#8f78ea', draw(T) {
+    for (const [x, a, len] of [[-3, -.25, 36], [3, .3, 32], [0, .05, 40]]) leaf(x, -6, a, len, 2.2);
+    for (const [x, y, r, ph] of [[-12, -46, 9, 0], [12, -50, 9, 1.3], [0, -60, 8.5, 2.5]]) {
+      const [sx, sy, th] = swayed(x, y, T, ph); stemTo(sx, sy, '#4f9a45', .6); iris(sx, sy, r, th * 2);
+    }
+  } },
+  { name: 'eucalyptus', meaning: 'protection (and it smells amazing)', colour: '#9fc4b2', draw(T) {
+    for (const [x, y, ph] of [[-18, -50, 0], [-7, -60, .7], [5, -62, 1.4], [16, -52, 2.1], [0, -44, 2.8]]) {
+      const [sx, sy] = swayed(x, y, T, ph), rot = Math.atan2(sx, TIEY - sy), L = Math.hypot(sx, TIEY - sy);
+      stemTo(sx, sy, '#6b8a6a', .4, .3); eucalyptus(sx, sy, L * .6, rot);
+    }
+  } },
 ];
 
 // ---------- ASCII tiles ----------
@@ -397,7 +672,7 @@ class Tile {
   }
   size() {
     const cs = getComputedStyle(this.c.parentElement), W = this.c.parentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = Math.round(W * 1.05);
-    const cols = Math.round(W / 4.4), cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
+    const cols = Math.max(40, Math.round(W / 4.4)), cw = W / cols, fs = cw / .6, ch = fs, rows = Math.ceil(H / ch);
     Object.assign(this, { W, H, cols, rows, cw, ch, fs, k: Math.min(W / 60, H / 74), prev: null, hist: null });
     this.c.style.width = W + 'px'; this.c.style.height = H + 'px';
     this.c.width = Math.round(W * DPR); this.c.height = Math.round(H * DPR);
