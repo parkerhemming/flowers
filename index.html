@@ -172,7 +172,7 @@
 const MAX = { focal: 3, filler: 2 }, MAX_NOTES = 6;
 const state = { picks: [], fav: null, notes: [] };      // picks: flower keys in the order chosen
 const DRAFT = 'flowers-draft';                          // this tab's work in progress, kept across the preview
-const saveDraft = () => { try { sessionStorage.setItem(DRAFT, JSON.stringify({ to: $('to').value, from: $('from').value, ...state })); } catch (e) {} };
+const saveDraft = () => { try { sessionStorage.setItem(DRAFT, JSON.stringify({ to: $('to').value, from: $('from').value, ...state, scroll: scrollY })); } catch (e) {} };
 const clearDraft = () => { try { sessionStorage.removeItem(DRAFT); } catch (e) {} };
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -355,7 +355,9 @@ try {   // back from the preview (or a reload): pick up where they left off
     state.fav = state.picks.includes(d.fav) ? d.fav : null;
     state.notes = (d.notes || []).filter(n => typeof n === 'string').slice(0, MAX_NOTES);
   }
-} catch (e) {}
-update();
+  update();
+  // back from the preview: land where they were (once the flowers are laid out, so the page is tall enough)
+  if (d && d.scroll) { history.scrollRestoration = 'manual'; requestAnimationFrame(() => scrollTo(0, d.scroll)); }
+} catch (e) { update(); }
 </script>
 </html>
