@@ -57,7 +57,10 @@
   #summary{font-size:12px;color:var(--dim);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
   #summary b{color:var(--ink);font-weight:600}
   .row{display:flex;gap:8px}
-  .big{min-height:44px;flex:1;border:1px solid var(--line);border-radius:3px;font-size:13px}
+  .big{min-height:44px;flex:1;border:1px solid var(--line);border-radius:3px;font-size:13px;white-space:nowrap;padding:0 8px}
+  #dock .row{flex-wrap:wrap}                            /* never wrap the words: if both don't fit, make it gets its own line */
+  #dock .big{flex:1 1 auto;padding:0 6px}
+  @media (max-width:360px){#mini{flex-basis:92px}}
   .big.go{border-color:var(--pink);color:var(--pink)}
   .big:disabled{opacity:.35;cursor:default}
   #full{position:fixed;inset:0;z-index:5;background:var(--bg);display:none}
