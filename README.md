@@ -63,7 +63,6 @@ Everything runs on the hemm.ing server (74.207.243.33), behind Cloudflare.
 | Backend | `/opt/flowers/server.py`, systemd service `flowers-api`, on `127.0.0.1:8790`. nginx sends `hemm.ing/flowers/api/*` to it |
 | Short links | nginx rewrites `hemm.ing/flowers/<6 letters>` to the backend, which serves `bouquet.html` with that bouquet's title and image filled in |
 | Data | `/var/lib/flowers/flowers.db` (SQLite: bouquets and codes); home-screen icons in `/var/lib/flowers/icons/` |
-| Secrets | `/etc/flowers.env`: Stripe keys and webhook secret, plus the Office 365 mail app (tenant ID, client ID, secret, `MAIL_FROM`). Never in this repo |
 
 **Payments:**
 - The backend creates a 99¢ Stripe payment when checkout opens.
@@ -74,6 +73,10 @@ Everything runs on the hemm.ing server (74.207.243.33), behind Cloudflare.
 - The mail app is locked to that mailbox by an Exchange application access policy.
 
 **Limits:** each visitor can start 12 checkouts and make 10 wrong code guesses per hour.
+
+### Admin dashboard
+
+**https://hemm.ing/flowers/admin**: every bouquet with its link, icon, flowers, notes and buyer email, plus sales stats. Tools: copy or open links, resend a confirmation email, delete a bouquet, and make or copy free codes. It asks for the admin key once per device.
 
 ### Admin commands
 

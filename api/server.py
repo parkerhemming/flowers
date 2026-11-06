@@ -5,6 +5,7 @@ or a single-use redeem code, and serves them back for short links (hemm.ing/flow
 Standard library only. Keys come from the environment (/etc/flowers.env), never the repo:
   STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
   MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MAIL_FROM   (confirmation email via Office 365 / Microsoft Graph)
+  ADMIN_KEY   (the dashboard at hemm.ing/flowers/admin)
 
   python3 server.py                 run the API on 127.0.0.1:8790
   python3 server.py codes 5         print 5 new redeem codes
@@ -191,6 +192,11 @@ class API(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def admin(self):   # the key is long and random, so a constant-time compare is all it needs
+        key = os.environ.get('ADMIN_KEY', '')
+        given = self.headers.get('Authorization', '').removeprefix('Bearer ')
+        return len(key) >= 32 and hmac.compare_digest(key.encode(), given.encode())
+
     def ip(self):   # the visitor, as Cloudflare saw them
         return self.headers.get('CF-Connecting-IP') or self.client_address[0]
 
@@ -210,6 +216,8 @@ class API(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             return self.wfile.write(body)
+        if path == '/admin/data':
+            return self.send(200, admin_data()) if self.admin() else self.send(401, {'error': 'wrong key'})
         m = re.match(r'^/page/([a-z0-9]{6})$', path)
         if m:   # a short link: the bouquet page, with its own preview title and image
             row = ID_RE.match(m.group(1)) and db().execute("select data from bouquets where id=? and status='paid'", (m.group(1),)).fetchone()
@@ -266,6 +274,25 @@ class API(BaseHTTPRequestHandler):
             with open(icon_path(i), 'xb') as fh:
                 fh.write(png)
             return self.send(200, {'ok': True})
+        if path.startswith('/admin/'):
+            if not self.admin():
+                return self.send(401, {'error': 'wrong key'})
+            try:
+                body = json.loads(self.read() or b'{}')
+            except json.JSONDecodeError:
+                body = {}
+            if path == '/admin/codes':
+                return self.send(200, {'codes': make_codes(max(1, min(50, int(body.get('n', 1)))))})
+            if path == '/admin/delete':
+                delete([i for i in body.get('ids', []) if isinstance(i, str) and ID_RE.match(i)])
+                return self.send(200, {'ok': True})
+            if path == '/admin/resend':
+                i, c = str(body.get('id', '')), db()
+                if not ID_RE.match(i) or not c.execute("update bouquets set mailed=null where id=? and status='paid' and email is not null", (i,)).rowcount:
+                    return self.send(400, {'error': 'nothing to send: unpaid or no email'})
+                paid(c, i)
+                return self.send(200, {'ok': True})
+            return self.send(404, {'error': 'not found'})
         m = re.match(r'^/email/([a-z0-9]{6})$', path)
         if m:
             try:
@@ -331,6 +358,15 @@ def make_codes(n):
     return out
 
 
+def admin_data():
+    c = db()
+    bouquets = [{'id': i, 'status': st, 'via': via, 'created': cr, 'email': em, 'mailed': bool(ml), 'icon': os.path.exists(icon_path(i)), **json.loads(d)}
+                for i, d, st, via, cr, em, ml in c.execute('select id, data, status, via, created, email, mailed from bouquets order by created desc')]
+    codes = [{'code': f'FLWR-{code[4:]}', 'used_by': ub, 'created': cr, 'used': u}
+             for code, ub, cr, u in c.execute('select code, used_by, created, used from codes order by created desc')]
+    return {'bouquets': bouquets, 'codes': codes, 'price': PRICE}
+
+
 def show_codes():
     for code, used_by, created, used in db().execute('select code, used_by, created, used from codes order by created'):
         made = time.strftime('%Y-%m-%d', time.localtime(created))
@@ -352,7 +388,8 @@ def delete(ids):
         gone = c.execute('delete from bouquets where id=?', (i,)).rowcount
         if os.path.exists(icon_path(i)):
             os.remove(icon_path(i))
-        print(f'{i}: ' + ('deleted' if gone else 'no such bouquet'))
+        if __name__ == '__main__':
+            print(f'{i}: ' + ('deleted' if gone else 'no such bouquet'))
 
 
 def selftest():
