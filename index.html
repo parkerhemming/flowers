@@ -229,7 +229,7 @@ function update() {
     $('steps').classList.remove('locked'); $('dock').classList.remove('locked'); $('nudge').hidden = true;
     tiles.forEach(t => t.size());                         // they were measured while hidden
   }
-  // "<3 sam's favorite?" — with their name when it fits on the card's button, otherwise "their"
+  // "sam's favorite?" / "sam's favorite <3": with their name when it fits on the card's button, otherwise "their"
   const whose = name && name.length <= 7 ? `${name.toLowerCase()}'s ` : 'their ';
   for (const t of tiles) {
     const k = t.def.key, on = state.picks.includes(k), full = state.picks.filter(x => BY_KEY[x].kind === t.def.kind).length >= MAX[t.def.kind];
@@ -237,7 +237,7 @@ function update() {
     t.card.querySelector('.add').textContent = on ? '[ ✓ added ]' : full ? `[ max ${MAX[t.def.kind]} ]` : '[ + add ]';
     const fav = t.card.querySelector('.fav'), isFav = state.fav === k;
     fav.hidden = !on; fav.classList.toggle('on', isFav);
-    fav.textContent = `<3 ${whose}favorite${isFav ? '' : '?'}`;
+    fav.textContent = `${whose}favorite${isFav ? ' <3' : '?'}`;   // "sam's favorite?" -> "sam's favorite <3"
   }
   $('notes').innerHTML = '';
   state.notes.forEach((m, i) => {
