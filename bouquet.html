@@ -110,6 +110,8 @@ const q = (() => {
   let b = null;
   try { const r = new XMLHttpRequest(); r.open('GET', 'api/b/' + id[1], false); r.send(); if (r.status === 200) b = JSON.parse(r.responseText); } catch (e) {}
   if (!b || b.status !== 'paid') { location.replace('./'); throw new Error('no such bouquet'); }   // unknown or unpaid: off to make one
+  window.BID = id[1]; window.BICON = b.icon;
+  document.querySelector('link[rel=apple-touch-icon]').href = 'api/icon/' + id[1];   // its own home-screen icon
   p.set('name', b.name); if (b.from) p.set('from', b.from); p.set('f', b.f); b.msgs.forEach(m => p.append('msg', m));
   return p;
 })();
@@ -299,7 +301,7 @@ const FROM = (q.get('from') || '').normalize('NFC').replace(/[<>&"]/g, '').trim(
 const MSGS = q.getAll('msg').map(m => [...m.trim()].slice(0, 40).join('')).filter(Boolean).slice(0, 6);
 document.title = `For ${NAME}`;
 document.querySelector('meta[name=apple-mobile-web-app-title]').content = `For ${NAME}`;   // the home-screen app's name
-if (q.has('embed')) document.body.classList.add('embed');
+if (q.has('embed') || q.has('icon')) document.body.classList.add('embed');
 { // the info panel: one entry per flower in the bouquet; their favorite gets a heart
   const info = document.getElementById('info');
   info.querySelector('h2').textContent = `a bouquet for ${NAME.toLowerCase()}`;
@@ -608,8 +610,8 @@ function setup() {
   { const next = c.nextSibling, parent = c.parentNode; parent.removeChild(c); parent.insertBefore(c, next); }
   S.width = cols * SS; S.height = rows * SS; prevL = null; hist = null;
   // body padding: the widest moment (the spelled-out name) spans ~146 world units
-  const pad = Math.max(16, W * .04);
-  G_ = { W, H, cols, rows, cw, ch, fs, dpr, k: Math.min((W - 2 * pad) / 134, (H - 2 * pad) / 118) };   // measured extents of rest + Aria states
+  const pad = q.has('icon') ? 4 : Math.max(16, W * .04), [fw, fh] = q.has('icon') ? [108, 132] : [134, 118];   // the icon zooms in on the bouquet
+  G_ = { W, H, cols, rows, cw, ch, fs, dpr, k: Math.min((W - 2 * pad) / fw, (H - 2 * pad) / fh) };   // measured extents of rest + Aria states
   frame(...cur);
 }
 function frame(M, T = 1e3, wind = 1) {
@@ -618,7 +620,7 @@ function frame(M, T = 1e3, wind = 1) {
   const { W, H, cols, rows, cw, ch, fs, k, dpr } = G_;
   s.setTransform(1, 0, 0, 1, 0, 0); s.clearRect(0, 0, S.width, S.height);
   s.setTransform(SS / cw, 0, 0, SS / ch, 0, 0);                // screen px -> sample px
-  s.translate(W / 2 + (-4.3 + 7.1 * smooth(M)) * k, H / 2 + 67.5 * k); s.scale(k, k);   // gentle pan: each state is centred          // bouquet world units
+  s.translate(W / 2 + (-4.3 + 7.1 * smooth(M)) * k, H / 2 + (q.has('icon') ? 72 : 67.5) * k); s.scale(k, k);   // gentle pan: each state is centred          // bouquet world units
   scene(M, T, wind);
 
   const d = s.getImageData(0, 0, S.width, S.height).data, SW = S.width;
@@ -693,6 +695,11 @@ function frame(M, T = 1e3, wind = 1) {
 }
 
 setup();
+// Home-screen icon: drawn once, by the first browser to show the bouquet. A hidden 180px copy
+// of this page renders one still frame at low density (like the original rose icon) and saves it.
+if (window.BID && q.has('icon')) c.toBlob(png => fetch('api/icon/' + BID, { method: 'POST', body: png }), 'image/png');
+else if (window.BID && !BICON) setTimeout(() => document.body.insertAdjacentHTML('beforeend',
+  `<iframe aria-hidden="true" tabindex="-1" src="${BID}?icon&bt=20&cols=40" style="position:fixed;left:-999px;top:0;width:180px;height:180px;border:0"></iframe>`), 1500);
 addEventListener('resize', setup);
 // is a screen point on the flowers? (any drawn character within `reach` css px of it;
 // fingers get more reach than a mouse)

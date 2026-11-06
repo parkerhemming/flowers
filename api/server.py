@@ -18,6 +18,9 @@ KEYS = {'rose', 'tulip', 'sunflower', 'orchid', 'peony', 'hydrangea', 'lily', 'c
         'calla', 'mum', 'dahlia', 'anemone', 'iris', 'lavender', 'dokrak', 'daisy', 'babys', 'eucalyptus'}
 ID_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789'  # no 0/o, 1/l/i: easy to read out loud
 ID_RE = re.compile(r'^[a-hjkmnp-z2-9]{6}$')
+ICONS = os.path.join(os.path.dirname(DB), 'icons')
+DEFAULT_ICON = os.environ.get('FLOWERS_DEFAULT_ICON', '/var/www/flowers-app/apple-touch-icon.png')
+icon_path = lambda i: os.path.join(ICONS, i + '.png')
 
 
 def db():
@@ -88,10 +91,20 @@ class API(BaseHTTPRequestHandler):
 
     def read(self):
         n = int(self.headers.get('Content-Length') or 0)
-        return self.rfile.read(min(n, 20000))
+        return self.rfile.read(min(n, 400001 if self.path.startswith('/icon/') else 20000))
 
     def do_GET(self):
         path = self.path.split('?')[0]
+        m = re.match(r'^/icon/([a-z0-9]{6})$', path)
+        if m:   # the bouquet's home-screen icon, or the plain rose until it has one
+            f = icon_path(m.group(1)) if ID_RE.match(m.group(1)) and os.path.exists(icon_path(m.group(1))) else DEFAULT_ICON
+            body = open(f, 'rb').read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Cache-Control', 'public, max-age=86400' if f != DEFAULT_ICON else 'no-store')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
         if path == '/config':
             return self.send(200, {'publishableKey': os.environ.get('STRIPE_PUBLISHABLE_KEY', ''), 'price': PRICE})
         m = re.match(r'^/b/([a-z0-9]{6})$', path)
@@ -110,7 +123,7 @@ class API(BaseHTTPRequestHandler):
                     status = 'paid'
             except (urllib.error.URLError, KeyError):
                 pass
-        return self.send(200, {'status': status, **(json.loads(data) if status == 'paid' else {})})
+        return self.send(200, {'status': status, 'icon': os.path.exists(icon_path(m.group(1))), **(json.loads(data) if status == 'paid' else {})})
 
     def do_POST(self):
         path = self.path.split('?')[0]
@@ -122,6 +135,16 @@ class API(BaseHTTPRequestHandler):
             ev = json.loads(payload)
             if ev.get('type') == 'payment_intent.succeeded':
                 db().execute("update bouquets set status='paid' where pi=?", (ev['data']['object']['id'],))
+            return self.send(200, {'ok': True})
+        m = re.match(r'^/icon/([a-z0-9]{6})$', path)
+        if m:   # set once, by the first browser to show the bouquet: a paid bouquet, a PNG, small
+            i, png = m.group(1), self.read()
+            row = ID_RE.match(i) and db().execute('select status from bouquets where id=?', (i,)).fetchone()
+            if not row or row[0] != 'paid' or os.path.exists(icon_path(i)) or not png.startswith(b'\x89PNG\r\n\x1a\n') or len(png) > 400000:
+                return self.send(400, {'error': 'no'})
+            os.makedirs(ICONS, exist_ok=True)
+            with open(icon_path(i), 'xb') as fh:
+                fh.write(png)
             return self.send(200, {'ok': True})
         if path != '/create':
             return self.send(404, {'error': 'not found'})

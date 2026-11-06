@@ -237,6 +237,8 @@ function finished(id) {
   const url = `${location.origin}/flowers/${id}`;
   $('url').href = url; $('url').textContent = url.replace(/^https?:\/\//, '');
   $('buy').hidden = true; $('done').hidden = false;
+  // draw its home-screen icon now, so it's ready before they ever open it
+  document.body.insertAdjacentHTML('beforeend', `<iframe aria-hidden="true" tabindex="-1" src="${id}?icon&bt=20&cols=40" style="position:fixed;left:-999px;top:0;width:180px;height:180px;border:0"></iframe>`);
   $('share').hidden = !navigator.share;
 }
 // the webhook usually beats us here; the API also asks Stripe directly, so a short wait is plenty
