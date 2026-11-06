@@ -20,6 +20,7 @@ KEYS = {'rose', 'tulip', 'sunflower', 'orchid', 'peony', 'hydrangea', 'lily', 'c
 ID_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789'  # no 0/o, 1/l/i: easy to read out loud
 ID_RE = re.compile(r'^[a-hjkmnp-z2-9]{6}$')
 ICONS = os.path.join(os.path.dirname(DB), 'icons')
+PAGE = os.environ.get('FLOWERS_PAGE', '/var/www/flowers-app/bouquet.html')
 DEFAULT_ICON = os.environ.get('FLOWERS_DEFAULT_ICON', '/var/www/flowers-app/apple-touch-icon.png')
 icon_path = lambda i: os.path.join(ICONS, i + '.png')
 
@@ -138,6 +139,45 @@ def mail_link(i, to, d):
         db().execute('update bouquets set mailed=null where id=?', (i,))
 
 
+def page_html(i, d):
+    """bouquet.html with this bouquet's name and icon filled in, for link previews (Messages
+    doesn't run JavaScript) and the home-screen name/icon."""
+    t = open(PAGE, encoding='utf-8').read()
+    if not d:
+        return t
+    title, icon = html.escape(f"For {d['name']}"), f'https://hemm.ing/flowers/api/icon/{i}'
+    for a, b in [('<title>Flowers for you</title>', f'<title>{title}</title>'),
+                 ('<meta property="og:title" content="Flowers for you">',
+                  f'<meta property="og:title" content="{title}">\n<meta property="og:image" content="{icon}">\n'
+                  f'<meta property="og:url" content="https://hemm.ing/flowers/{i}">\n<meta property="og:type" content="website">'),
+                 ('<link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">', f'<link rel="apple-touch-icon" href="{icon}">'),
+                 ('<meta name="apple-mobile-web-app-title" content="Flowers">', f'<meta name="apple-mobile-web-app-title" content="{title}">')]:
+        t = t.replace(a, b)
+    return t
+
+
+class Limit:
+    """At most n hits per key per window seconds (in memory: resets on restart, fine at this size)."""
+    def __init__(self, n, window):
+        self.n, self.window, self.hits, self.lock = n, window, {}, threading.Lock()
+
+    def ok(self, key, now=None):
+        now = now or time.time()
+        with self.lock:
+            if len(self.hits) > 5000:   # forget idle visitors
+                self.hits = {k: v for k, v in self.hits.items() if v and v[-1] > now - self.window}
+            recent = [t for t in self.hits.get(key, []) if t > now - self.window]
+            if len(recent) >= self.n:
+                self.hits[key] = recent
+                return False
+            self.hits[key] = recent + [now]
+            return True
+
+
+CHECKOUTS = Limit(12, 3600)   # opening checkout makes a Stripe payment; 12 an hour per visitor is plenty
+CODE_TRIES = Limit(10, 3600)  # wrong redeem codes
+
+
 class API(BaseHTTPRequestHandler):
     def send(self, code, obj):
         body = json.dumps(obj).encode()
@@ -147,6 +187,9 @@ class API(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def ip(self):   # the visitor, as Cloudflare saw them
+        return self.headers.get('CF-Connecting-IP') or self.client_address[0]
 
     def read(self):
         n = int(self.headers.get('Content-Length') or 0)
@@ -161,6 +204,16 @@ class API(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'image/png')
             self.send_header('Cache-Control', 'public, max-age=86400' if f != DEFAULT_ICON else 'no-store')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+        m = re.match(r'^/page/([a-z0-9]{6})$', path)
+        if m:   # a short link: the bouquet page, with its own preview title and image
+            row = ID_RE.match(m.group(1)) and db().execute("select data from bouquets where id=? and status='paid'", (m.group(1),)).fetchone()
+            body = page_html(m.group(1), json.loads(row[0]) if row else None).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, max-age=0')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             return self.wfile.write(body)
@@ -236,6 +289,8 @@ class API(BaseHTTPRequestHandler):
         email = str(body.get('email', '')).strip()
         email = email if EMAIL_RE.match(email) else ''
         if code:   # a friend's free bouquet: each code works exactly once
+            if not CODE_TRIES.ok(self.ip()):
+                return self.send(429, {'error': 'too many tries. wait a bit and try again.'})
             c.execute('begin immediate')
             used = c.execute('update codes set used_by=?, used=? where code=? and used_by is null', (i, int(time.time()), code)).rowcount
             if used:
@@ -244,10 +299,13 @@ class API(BaseHTTPRequestHandler):
             c.execute('commit')
             if used:
                 paid(c, i)
-            return self.send(200, {'id': i}) if used else self.send(400, {'error': "that code doesn't work (or it's been used)"})
+            if used:
+                return self.send(200, {'id': i})
+            return self.send(400, {'error': "that code doesn't work (or it's been used)"})
         if not os.environ.get('STRIPE_SECRET_KEY'):
             return self.send(503, {'error': "payments aren't switched on yet"})
-        # ponytail: no per-IP rate limit on unpaid intents; add one if someone spams this
+        if not CHECKOUTS.ok(self.ip()):
+            return self.send(429, {'error': 'too many checkouts started. wait a bit and try again.'})
         try:
             pi = stripe('POST', 'payment_intents', {'amount': PRICE, 'currency': 'usd', 'automatic_payment_methods[enabled]': 'true',
                                                     'description': f'Flowers for {data["name"]}', 'metadata[bouquet]': i})
@@ -284,6 +342,8 @@ def selftest():
     assert not verify_webhook(b'{"x":1}', f't={t},v1={sig}', 'whsec')
     assert not verify_webhook(b'{}', f't={t - 999},v1={sig}', 'whsec')
     assert ID_RE.match('k7x2p9') and not ID_RE.match('k7x2p0')
+    lim = Limit(2, 60)
+    assert lim.ok('a', 0 + 1) and lim.ok('a', 2) and not lim.ok('a', 3) and lim.ok('b', 3) and lim.ok('a', 62)
     assert EMAIL_RE.match('a.b+c@hemm.ing') and not EMAIL_RE.match('a@b') and not EMAIL_RE.match('a <x>@b.co')
     page = email_html('k7x2p9', {'name': 'Sam', 'from': 'Al <b>', 'f': 'rose', 'msgs': []})
     assert 'flowers for sam, from al &lt;b&gt;' in page and 'hemm.ing/flowers/api/icon/k7x2p9' in page
