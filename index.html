@@ -23,11 +23,6 @@
   .prompt .count{color:var(--dim);font-size:12px}
   h2.sec{font-size:14px;font-weight:600;color:var(--pink);margin:26px 0 2px}
   h2.sec::before{content:'// ';color:var(--dim)}
-  /* nothing below the name until there is one */
-  #steps.locked,#dock.locked,#nudge[hidden]{display:none}
-  #steps{animation:rise .5s ease-out}
-  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  #nudge{margin-top:14px;color:var(--pink);opacity:.8}
   .hint{color:var(--dim);font-size:12px;margin:0 0 10px}
   .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .tile{margin:0;border:1px dashed var(--line);border-radius:3px;padding:6px 6px 0;min-width:0;transition:border-color .2s}
@@ -52,7 +47,7 @@
   .prompt button{color:var(--pink);min-height:44px;min-width:44px}
   /* the live bouquet: a bar pinned to the bottom on phones, a column on wide screens */
   .small{width:100%;box-sizing:border-box;max-width:760px;margin:40px auto 0;padding:0 14px calc(18px + env(safe-area-inset-bottom));color:var(--faint);font-size:12px;line-height:1.6;text-align:center;white-space:nowrap}
-  body.docked .small{padding-bottom:calc(178px + env(safe-area-inset-bottom))}   /* clear the fixed bottom bar on phones */
+  .small{padding-bottom:calc(178px + env(safe-area-inset-bottom))}   /* clear the fixed bottom bar on phones */
   .small a{color:var(--dim);text-decoration:none;border-bottom:1px dashed var(--line)}
   @media (max-width:360px){.small{font-size:11px;padding-left:8px;padding-right:8px}}   /* still one line on the smallest phones */
   #dock{position:fixed;left:0;right:0;bottom:0;background:rgba(11,10,13,.96);border-top:1px dashed var(--line);
@@ -90,7 +85,7 @@
   #done .row{justify-content:center}
   @media (min-width:900px){
     main{max-width:1180px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;padding-bottom:0}
-    .small,body.docked .small{max-width:1180px;padding-bottom:28px}
+    .small{max-width:1180px;padding-bottom:28px}
     #dock{position:sticky;top:20px;align-self:start;flex-direction:column;border:1px dashed var(--line);border-radius:3px;padding:12px;grid-column:2;grid-row:1}
     #mini{flex:none;width:100%;height:440px}
     #form{grid-column:1;grid-row:1}
@@ -104,9 +99,8 @@
     <div class="prompt"><label for="to">&gt; to:</label><input id="to" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="9" placeholder="their name"><span class="count" id="count">0/9</span></div>
     <div class="prompt"><label for="from">&gt; from:</label><input id="from" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="20" placeholder="you (optional)"></div>
 
-    <p class="hint" id="nudge">&uarr; start with their name, then the flowers appear.</p>
 
-    <div id="steps" class="locked">
+    <div id="steps">
     <h2 class="sec">step 1 · focal flowers</h2>
     <p class="hint">the main flowers. tap a flower to add it, up to 3. then tap &lt;3 on their favorite.</p>
     <div class="grid" id="focal"></div>
@@ -123,7 +117,7 @@
 
   </div>
 
-  <div id="dock" class="locked">
+  <div id="dock">
     <div id="mini" role="button" aria-label="Preview the bouquet full screen"><div class="empty">pick a<br>flower</div></div>
     <div id="side">
       <div id="summary">pick some flowers and they'll show up here.</div>
@@ -231,10 +225,6 @@ let miniSrc = '', miniTimer = 0;
 function update() {
   const name = $('to').value.trim(), n = state.picks.length;
   $('count').textContent = `${name.length}/9`;
-  if (name && $('steps').classList.contains('locked')) {   // first letter typed: show the flowers (once)
-    $('steps').classList.remove('locked'); $('dock').classList.remove('locked'); $('nudge').hidden = true; document.body.classList.add('docked');
-    tiles.forEach(t => t.size());                         // they were measured while hidden
-  }
   // "sam's favorite?" / "sam's favorite <3": with their name when it fits on the card's button, otherwise "their"
   const whose = name && name.length <= 7 ? `${name.toLowerCase()}'s ` : 'their ';
   for (const t of tiles) {
